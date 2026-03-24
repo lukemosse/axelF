@@ -427,6 +427,26 @@ public:
         mstLbl ("HIGH", fxKnobY_eqHigh);
         mstLbl ("THR",  fxKnobY_compThresh);
         mstLbl ("RAT",  fxKnobY_compRatio);
+
+        // ── Master VU meter ──────────────────────────────────
+        {
+            float meterW = 6.0f;
+            auto meterRect = juce::Rectangle<float> (masterMeterX_, static_cast<float> (masterMeterY_),
+                                                     meterW, static_cast<float> (masterMeterH_));
+            g.setColour (juce::Colour (0xFF0a0e14));
+            g.fillRoundedRectangle (meterRect, 2.0f);
+
+            float level = juce::jlimit (0.0f, 1.0f, masterPeakLevel_);
+            float fillH = static_cast<float> (masterMeterH_) * level;
+            auto filled = juce::Rectangle<float> (masterMeterX_,
+                                                   static_cast<float> (masterMeterY_) + static_cast<float> (masterMeterH_) - fillH,
+                                                   meterW, fillH);
+            auto colour = level < 0.7f  ? juce::Colour (Colours::accentGreen)
+                        : level < 0.9f  ? juce::Colour (0xFFddaa00)
+                                        : juce::Colour (Colours::accentRed);
+            g.setColour (colour.withAlpha (0.85f));
+            g.fillRoundedRectangle (filled, 2.0f);
+        }
     }
 
     void resized() override
@@ -434,7 +454,9 @@ public:
         auto area = getLocalBounds();
         const int totalStrips = 8;
         const int stripW = area.getWidth() / totalStrips;
-        const int knobSize = std::min (stripW - 6, 32);
+        // Match channel-strip knobs to FX/Master knob sizing
+        const int availH_all = area.getHeight() - 18;
+        const int knobSize = std::min (stripW - 4, std::max (20, (availH_all - 3 * 12 - 2 * 2) / 6));
 
         // ── Send knob sizing ─────────────────────────────────
         sendKnobSize_ = std::min (stripW - 4, 28);
@@ -459,11 +481,12 @@ public:
             s.tiltKnob.setBounds (x + (stripW - knobSize) / 2, y, knobSize, knobSize);
             y += knobSize + 2;
 
-            // Mute / Solo side by side
-            int btnW = (stripW - 6) / 2;
-            int btnH = 16;
+            // Mute / Solo — full-width stacked rows
+            int btnW = stripW - 4;
+            int btnH = 22;
             s.muteBtn.setBounds (x + 2, y, btnW, btnH);
-            s.soloBtn.setBounds (x + 2 + btnW + 2, y, btnW, btnH);
+            y += btnH + 2;
+            s.soloBtn.setBounds (x + 2, y, btnW, btnH);
             y += btnH + 4;
 
             // Vertical fader (shorter — ends before send area)
@@ -566,7 +589,13 @@ public:
             // Master fader (fills remaining height)
             int faderBottom = area.getHeight() - 8;
             int faderW = std::min (stripW - 10, 24);
-            masterFader.setBounds (x + (stripW - faderW) / 2, y, faderW, std::max (30, faderBottom - y));
+            int faderX = x + (stripW - faderW) / 2;
+            masterFader.setBounds (faderX, y, faderW, std::max (30, faderBottom - y));
+
+            // VU meter position — to the right of the fader
+            masterMeterX_ = static_cast<float> (faderX + faderW + 3);
+            masterMeterY_ = y;
+            masterMeterH_ = std::max (30, faderBottom - y);
         }
     }
 
@@ -575,6 +604,7 @@ private:
     {
         for (int i = 0; i < 5; ++i)
             strips[i].peakLevel = mixer.getPeakLevel (i);
+        masterPeakLevel_ = mixer.getMasterPeakLevel();
         repaint();
     }
 
@@ -617,6 +647,9 @@ private:
     // ── Master strip ─────────────────────────────────────────
     juce::Slider masterFader;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> masterAttachment;
+    float masterPeakLevel_ = 0.0f;
+    int masterMeterY_ = 0, masterMeterH_ = 0;
+    float masterMeterX_ = 0.0f;
 
     // ── FX controls ──────────────────────────────────────────
     juce::Slider reverbSize, reverbDamping;

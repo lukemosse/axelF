@@ -55,7 +55,9 @@ private:
     juce::AudioFormatManager formatManager;
 
     void loadAllBanks(double sampleRate);
+    bool loadBankFromBinaryData(int bankIndex, int bankNumber, double sampleRate);
     bool loadBankFromDisk(int bankIndex, const juce::String& folderName, double sampleRate);
+    bool loadSampleFromMemory(DrumSampleBank::Sample& sample, const void* data, int dataSize, double targetSR);
     void generateSyntheticSamples(DrumSampleBank& bank, double sampleRate);
     void updateVoiceParameters();
 };

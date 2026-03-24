@@ -95,7 +95,8 @@ void DX7Processor::updateVoiceParameters()
                 safeLoad("dx7_lfo_speed", 35.0f),
                 safeLoad("dx7_lfo_pmd", 0.0f),
                 safeLoad("dx7_lfo_amd", 0.0f),
-                static_cast<int>(safeLoad("dx7_lfo_wave", 0.0f)));
+                static_cast<int>(safeLoad("dx7_lfo_wave", 0.0f)),
+                safeLoad("dx7_lfo_delay", 0.0f));
 
             for (int op = 0; op < 6; ++op)
             {
@@ -105,6 +106,7 @@ void DX7Processor::updateVoiceParameters()
                 oper.setLevel(safeLoad(prefix + "level", 99.0f));
                 oper.setRatio(safeLoad(prefix + "ratio", 1.0f));
                 oper.setDetune(safeLoad(prefix + "detune", 0.0f));
+                oper.setVelocitySensitivity(safeLoad(prefix + "vel_sens", 3.0f));
 
                 oper.setEGParameters(
                     safeLoad(prefix + "eg_r1", 50.0f),

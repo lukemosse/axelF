@@ -232,6 +232,7 @@ std::unique_ptr<juce::XmlElement> SceneManager::toXml() const
             spXml->setAttribute("module", m);
             spXml->setAttribute("barCount", sp.getBarCount());
             spXml->setAttribute("beatsPerBar", sp.getBeatsPerBar());
+            spXml->setAttribute("loopBars", sp.getLoopBars());
 
             for (size_t e = 0; e < sp.getNumEvents(); ++e)
             {
@@ -341,6 +342,7 @@ void SceneManager::fromXml(const juce::XmlElement* xml)
             sp.clear();
             sp.setBarCount(spXml->getIntAttribute("barCount", 4));
             sp.setBeatsPerBar(spXml->getIntAttribute("beatsPerBar", 4));
+            sp.setLoopBars(spXml->getIntAttribute("loopBars", 4));
 
             for (auto* evtXml : spXml->getChildWithTagNameIterator("Event"))
             {

@@ -27,9 +27,8 @@ void GlobalTransport::play()
 {
     if (state.load() == TransportState::Stopped)
     {
-        positionInBeats = 0.0;
-        blockStartPosition = 0.0;
-        totalBeatsElapsed = 0.0;
+        // Don't reset position — start from current cue point
+        blockStartPosition = positionInBeats;
         loopResetFlag = false;
 
         if (countInEnabled.load())
@@ -50,22 +49,29 @@ void GlobalTransport::play()
 
 void GlobalTransport::stop()
 {
+    auto prev = state.load();
     state.store(TransportState::Stopped);
-    positionInBeats = 0.0;
-    blockStartPosition = 0.0;
-    totalBeatsElapsed = 0.0;
     loopResetFlag = false;
     countInBeatsRemaining = 0.0;
     countInBeatAccumulator = 0.0;
+    hasPendingCue.store(false);
+
+    if (prev == TransportState::Stopped)
+    {
+        // Second stop press: return to beginning
+        positionInBeats = 0.0;
+        blockStartPosition = 0.0;
+        totalBeatsElapsed = 0.0;
+    }
+    // First stop: keep current position (pause behavior)
 }
 
 void GlobalTransport::startRecording()
 {
     if (state.load() == TransportState::Stopped)
     {
-        positionInBeats = 0.0;
-        blockStartPosition = 0.0;
-        totalBeatsElapsed = 0.0;
+        // Don't reset position — start recording from current cue point
+        blockStartPosition = positionInBeats;
         loopResetFlag = false;
 
         if (countInEnabled.load())
@@ -156,6 +162,26 @@ void GlobalTransport::advance(int numSamples, double sampleRate)
         int currWholeBeat = static_cast<int>(positionInBeats);
         if (currWholeBeat > prevWholeBeat)
             beatCrossFlag = true;
+    }
+
+    // Consume pending cue at bar boundary
+    {
+        int beatsPerBar = timeSigNumerator.load();
+        int prevBar = static_cast<int>(prevBeatPos) / beatsPerBar;
+        int currBar = static_cast<int>(positionInBeats) / beatsPerBar;
+        if (currBar > prevBar)
+        {
+            double cueBeat = 0.0;
+            if (consumePendingCue(cueBeat))
+            {
+                positionInBeats = std::max(0.0, cueBeat);
+                blockStartPosition = positionInBeats;
+                loopResetFlag = true;
+                if (onLoopReset)
+                    onLoopReset();
+                return;
+            }
+        }
     }
 
     // Check for loop wrap

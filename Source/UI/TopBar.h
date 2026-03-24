@@ -35,6 +35,19 @@ public:
         recordButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFEF5350));
         addAndMakeVisible(recordButton);
 
+        // ── Rewind / Fast-forward buttons ────────────────
+        rewindButton.setButtonText(juce::String::charToString(0x23EA));  // ⏪
+        rewindButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF37474F));
+        rewindButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Colours::textPrimary));
+        rewindButton.setTooltip("Rewind 1 bar");
+        addAndMakeVisible(rewindButton);
+
+        ffwdButton.setButtonText(juce::String::charToString(0x23E9));  // ⏩
+        ffwdButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF37474F));
+        ffwdButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Colours::textPrimary));
+        ffwdButton.setTooltip("Fast-forward 1 bar");
+        addAndMakeVisible(ffwdButton);
+
         // ── Count-in toggle ──────────────────────────
         countInButton.setButtonText("COUNT IN");
         countInButton.setClickingTogglesState(true);
@@ -94,6 +107,21 @@ public:
         panicButton.setColour(juce::TextButton::buttonColourId, juce::Colour(Colours::accentRed).withAlpha(0.7f));
         panicButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Colours::textPrimary));
         addAndMakeVisible(panicButton);
+
+        // ── Maximize / fullscreen button ──────────────
+        maxButton.setButtonText(juce::String::charToString(0x25A1));  // □
+        maxButton.setColour(juce::TextButton::buttonColourId, juce::Colour(Colours::bgControl));
+        maxButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Colours::textSecondary));
+        maxButton.setTooltip("Toggle fullscreen (or double-click title bar)");
+        maxButton.onClick = [this]
+        {
+            if (auto* window = findParentComponentOfClass<juce::DocumentWindow>())
+            {
+                if (auto* peer = window->getPeer())
+                    peer->setFullScreen(!peer->isFullScreen());
+            }
+        };
+        addAndMakeVisible(maxButton);
 
         // ── File / session button ───────────────────────
         fileButton.setButtonText("FILE");
@@ -186,6 +214,10 @@ public:
     {
         auto area = getLocalBounds().reduced(8, 4);
 
+        // Right side: maximize
+        maxButton.setBounds(area.removeFromRight(28));
+        area.removeFromRight(4);
+
         // Right side: panic
         panicButton.setBounds(area.removeFromRight(60));
         area.removeFromRight(4);
@@ -221,11 +253,15 @@ public:
         sessionLabel.setBounds(area.removeFromLeft(100));
         area.removeFromLeft(4);
 
-        auto transportArea = area.removeFromLeft(110);
-        int btnW = 34;
+        auto transportArea = area.removeFromLeft(220);
+        int btnW = 42;
+        rewindButton.setBounds(transportArea.removeFromLeft(btnW));
+        transportArea.removeFromLeft(2);
         playButton.setBounds(transportArea.removeFromLeft(btnW));
         transportArea.removeFromLeft(2);
         stopButton.setBounds(transportArea.removeFromLeft(btnW));
+        transportArea.removeFromLeft(2);
+        ffwdButton.setBounds(transportArea.removeFromLeft(btnW));
         transportArea.removeFromLeft(2);
         recordButton.setBounds(transportArea.removeFromLeft(btnW));
 
@@ -243,6 +279,8 @@ public:
     juce::TextButton& getPlayButton() { return playButton; }
     juce::TextButton& getStopButton() { return stopButton; }
     juce::TextButton& getRecordButton() { return recordButton; }
+    juce::TextButton& getRewindButton() { return rewindButton; }
+    juce::TextButton& getFfwdButton() { return ffwdButton; }
     juce::TextButton& getPanicButton() { return panicButton; }
     juce::TextButton& getCountInButton() { return countInButton; }
     juce::TextButton& getClickButton() { return clickButton; }
@@ -284,9 +322,12 @@ private:
     juce::TextButton playButton;
     juce::TextButton stopButton;
     juce::TextButton recordButton;
+    juce::TextButton rewindButton;
+    juce::TextButton ffwdButton;
     juce::TextButton countInButton;
     juce::TextButton clickButton;
     juce::TextButton panicButton;
+    juce::TextButton maxButton;
     juce::Label cpuLabel;
     juce::TextButton logoButton;
     juce::ComboBox barCountBox;

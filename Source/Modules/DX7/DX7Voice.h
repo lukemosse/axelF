@@ -30,7 +30,7 @@ public:
 
     void setAlgorithm(int alg) { algorithm.setAlgorithm(alg); }
     void setFeedback(int fb) { feedbackAmount = fb; }
-    void setLFOParameters(float rate, float pmd, float amd, int waveform);
+    void setLFOParameters(float rate, float pmd, float amd, int waveform, float delay = 0.0f);
     DX7Operator& getOperator(int index) { return operators[static_cast<size_t>(index)]; }
 
 private:
@@ -39,12 +39,15 @@ private:
     axelf::dsp::LFOGenerator lfo;
     int feedbackAmount = 0;
     float lastFeedbackSample = 0.0f;
+    float prevFeedbackSample = 0.0f;
     float velocity = 0.0f;
     float noteFrequency = 440.0f;
     float pitchBendSemitones = 0.0f;
     float modWheelValue = 0.0f;       // CC1 mod wheel 0–1
     float lfoPMD = 0.0f;
     float lfoAMD = 0.0f;
+    int lfoDelaySamples = 0;
+    int samplesSinceNoteOn = 0;
 };
 
 } // namespace axelf::dx7

@@ -20,7 +20,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // Sensible defaults for Algorithm 5 (two 3-op stacks)
     // Op1,4 = carriers (full level, ratio 1.0), Op2,3,5,6 = modulators (reduced levels, harmonic ratios)
     constexpr float defaultLevels[] = { 99.0f, 72.0f, 50.0f, 85.0f, 60.0f, 40.0f };
-    constexpr float defaultRatios[] = { 1.0f, 2.0f, 3.0f, 1.0f, 4.0f, 7.0f };
+    constexpr float defaultRatios[] = { 1.0f, 2.0f, 3.0f, 1.0f, 4.0f, 2.0f };
     constexpr float defaultEGRates[6][4] = {
         {99.0f, 65.0f, 50.0f, 40.0f},  // Op1 carrier — gentle decay
         {99.0f, 80.0f, 50.0f, 50.0f},  // Op2 modulator — faster decay
@@ -76,6 +76,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                 "Op" + juce::String(op) + " EG L" + juce::String(l),
                 juce::NormalisableRange<float>(0.0f, 99.0f, 1.0f), defaultEGLevels[opIdx][l - 1]));
         }
+
+        // Velocity sensitivity (0 = none, 7 = full)
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{ prefix + "vel_sens", 1 },
+            "Op" + juce::String(op) + " Vel Sens",
+            juce::NormalisableRange<float>(0.0f, 7.0f, 1.0f), 3.0f));
     }
 
     // LFO

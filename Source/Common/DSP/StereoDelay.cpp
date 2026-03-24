@@ -187,12 +187,12 @@ void StereoDelay::process (juce::AudioBuffer<float>& buffer)
         dcBlockR_y1 = dcOutR;
 
         // Fast soft saturation prevents feedback loops from blowing up.
-        // We use a custom cubic clipper because std::tanh triggers x87 FPU 
-        // denormal exceptions on Windows, causing massive CPU spikes and audio pops.
+        // Cubic clipper at \u00b11.0 keeps feedback energy firmly below unity,
+        // preventing accumulation that causes clipping downstream.
         auto softClip = [](float x) -> float {
-            if (x > 1.5f)  return 1.0f;
-            if (x < -1.5f) return -1.0f;
-            return x - (x * x * x) / 6.75f;
+            if (x > 1.0f)  return 0.666f;
+            if (x < -1.0f) return -0.666f;
+            return x - (x * x * x) / 3.0f;
         };
 
         fbL = softClip(dcOutL);

@@ -190,6 +190,7 @@ std::unique_ptr<juce::XmlElement> PatternEngine::toXml() const
         spXml->setAttribute("module", m);
         spXml->setAttribute("barCount", sp.getBarCount());
         spXml->setAttribute("beatsPerBar", sp.getBeatsPerBar());
+        spXml->setAttribute("loopBars", sp.getLoopBars());
 
         for (size_t e = 0; e < sp.getNumEvents(); ++e)
         {
@@ -269,6 +270,7 @@ void PatternEngine::fromXml(const juce::XmlElement* xml)
         sp.clear();
         sp.setBarCount(spXml->getIntAttribute("barCount", 4));
         sp.setBeatsPerBar(spXml->getIntAttribute("beatsPerBar", 4));
+        sp.setLoopBars(spXml->getIntAttribute("loopBars", 4));
 
         for (auto* evtXml : spXml->getChildWithTagNameIterator("Event"))
         {
@@ -376,6 +378,27 @@ void PatternEngine::processBlock(GlobalTransport& transport,
         {
             // Reset undo-push flag when not recording
             recordUndoPushed[idx] = false;
+
+            // Flush any orphaned active notes (note-on received but no note-off before recording stopped)
+            for (auto it = activeRecordNotes.begin(); it != activeRecordNotes.end(); )
+            {
+                if (it->moduleIndex == i)
+                {
+                    double loopLen = synthPatterns[idx].getLoopLengthInBeats();
+                    double duration = std::min(1.0, loopLen > 0.0 ? loopLen * 0.25 : 1.0);
+                    MidiEvent evt;
+                    evt.noteNumber = it->noteNumber;
+                    evt.velocity   = it->velocity;
+                    evt.startBeat  = it->startBeat;
+                    evt.duration   = duration;
+                    synthPatterns[idx].addEvent(evt);
+                    it = activeRecordNotes.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
         }
 
         // 2. Generate pattern playback MIDI (if transport is playing and not muted)
@@ -385,6 +408,20 @@ void PatternEngine::processBlock(GlobalTransport& transport,
                 processDrumPlayback(transport, *outputMidi[idx], numSamples, sampleRate);
             else
                 processSynthPlayback(i, transport, *outputMidi[idx], numSamples, sampleRate);
+        }
+        else if (patternMuted[idx])
+        {
+            // Flush pending note-offs so muting doesn't leave hanging notes
+            for (auto it = pendingNoteOffs.begin(); it != pendingNoteOffs.end(); )
+            {
+                if (it->moduleIndex == i)
+                {
+                    outputMidi[idx]->addEvent(juce::MidiMessage::noteOff(1, it->noteNumber), 0);
+                    it = pendingNoteOffs.erase(it);
+                }
+                else
+                    ++it;
+            }
         }
 
         // 3. Merge live MIDI passthrough (always hear what you play)
@@ -401,7 +438,7 @@ void PatternEngine::processSynthPlayback(int moduleIndex, GlobalTransport& trans
     const double bpm = static_cast<double>(transport.getBpm());
     const double beatsPerSample = bpm / (60.0 * sampleRate);
     const double blockLengthBeats = beatsPerSample * numSamples;
-    const double patternLen = pattern.getLengthInBeats();
+    const double patternLen = pattern.getLoopLengthInBeats();
 
     // Wrap transport position to pattern's own cycle length.
     // In Song mode the transport spans the full arrangement, but patterns
@@ -659,9 +696,9 @@ void PatternEngine::processRecording(int moduleIndex, GlobalTransport& transport
             if (msg.isNoteOn())
             {
                 double qBeat = quantizeBeat(eventBeat, grid);
-                double patternLen = synthPatterns[static_cast<size_t>(moduleIndex)].getLengthInBeats();
-                if (patternLen > 0.0)
-                    qBeat = std::fmod(qBeat, patternLen);
+                double loopLen = synthPatterns[static_cast<size_t>(moduleIndex)].getLoopLengthInBeats();
+                if (loopLen > 0.0)
+                    qBeat = std::fmod(qBeat, loopLen);
 
                 ActiveNote an;
                 an.moduleIndex = moduleIndex;
@@ -678,15 +715,18 @@ void PatternEngine::processRecording(int moduleIndex, GlobalTransport& transport
                     if (it->moduleIndex == moduleIndex && it->noteNumber == msg.getNoteNumber())
                     {
                         double endBeatRaw = quantizeBeat(eventBeat, grid);
-                        double patternLen = synthPatterns[static_cast<size_t>(moduleIndex)].getLengthInBeats();
-                        if (patternLen > 0.0)
-                            endBeatRaw = std::fmod(endBeatRaw, patternLen);
+                        double loopLen = synthPatterns[static_cast<size_t>(moduleIndex)].getLoopLengthInBeats();
+                        if (loopLen > 0.0)
+                            endBeatRaw = std::fmod(endBeatRaw, loopLen);
 
                         double duration = endBeatRaw - it->startBeat;
                         if (duration <= 0.0)
-                            duration += patternLen;  // wrapped around
-                        if (duration <= 0.0)
-                            duration = 0.25;  // minimum 1/16
+                            duration += loopLen;  // wrapped around
+                        // Cap: if duration is still non-positive or equals the full loop
+                        // (happens when note-on and note-off quantize to the same beat),
+                        // use a sensible default instead of spanning the entire pattern.
+                        if (duration <= 0.0 || duration >= loopLen)
+                            duration = std::min(1.0, loopLen * 0.25);  // 1 beat or quarter loop
 
                         MidiEvent evt;
                         evt.noteNumber = it->noteNumber;

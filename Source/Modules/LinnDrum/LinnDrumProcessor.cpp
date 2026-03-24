@@ -1,6 +1,7 @@
 #include "LinnDrumProcessor.h"
 #include "LinnDrumVoice.h"
 #include "LinnDrumEditor.h"
+#include "BinaryData.h"
 #include <cmath>
 #include <random>
 
@@ -56,12 +57,16 @@ void LinnDrumProcessor::loadAllBanks(double sr)
     // Bank 0: synthetic fallback
     generateSyntheticSamples(allBanks[0], sr);
 
-    // Banks 1-N: load from disk, fill gaps with synthetic
+    // Banks 1-N: load from embedded BinaryData, then disk, fill gaps with synthetic
     for (int b = 0; b < numDiskBanks; ++b)
     {
-        if (!loadBankFromDisk(b + 1, folderNames[b], sr))
+        bool loaded = loadBankFromBinaryData(b + 1, b + 1, sr);
+        if (!loaded)
+            loaded = loadBankFromDisk(b + 1, folderNames[b], sr);
+
+        if (!loaded)
         {
-            // If folder not found, clone synthetic bank
+            // If nothing worked, clone synthetic bank
             allBanks[static_cast<size_t>(b + 1)] = allBanks[0];
         }
         else
@@ -75,6 +80,177 @@ void LinnDrumProcessor::loadAllBanks(double sr)
             }
         }
     }
+}
+
+bool LinnDrumProcessor::loadSampleFromMemory(DrumSampleBank::Sample& sample,
+                                              const void* data, int dataSize,
+                                              double sr)
+{
+    auto mis = std::make_unique<juce::MemoryInputStream>(
+        data, static_cast<size_t>(dataSize), false);
+    std::unique_ptr<juce::AudioFormatReader> reader(
+        formatManager.createReaderFor(std::move(mis)));
+    if (reader == nullptr)
+        return false;
+
+    const int numSrc = static_cast<int>(reader->lengthInSamples);
+    if (numSrc <= 0) return false;
+
+    juce::AudioBuffer<float> tempBuf(static_cast<int>(reader->numChannels), numSrc);
+    reader->read(&tempBuf, 0, numSrc, 0, true, true);
+
+    std::vector<float> mono(static_cast<size_t>(numSrc));
+    if (reader->numChannels >= 2)
+    {
+        const float* c0 = tempBuf.getReadPointer(0);
+        const float* c1 = tempBuf.getReadPointer(1);
+        for (int s = 0; s < numSrc; ++s)
+            mono[static_cast<size_t>(s)] = (c0[s] + c1[s]) * 0.5f;
+    }
+    else
+    {
+        std::memcpy(mono.data(), tempBuf.getReadPointer(0),
+                    static_cast<size_t>(numSrc) * sizeof(float));
+    }
+
+    double ratio = reader->sampleRate / sr;
+    if (std::abs(ratio - 1.0) < 0.001)
+    {
+        sample.data = std::move(mono);
+        sample.sampleRate = sr;
+    }
+    else
+    {
+        int newLen = static_cast<int>(static_cast<double>(numSrc) / ratio);
+        sample.data.resize(static_cast<size_t>(newLen));
+        sample.sampleRate = sr;
+        for (int s = 0; s < newLen; ++s)
+        {
+            double srcPos = static_cast<double>(s) * ratio;
+            int i0 = static_cast<int>(srcPos);
+            int i1 = std::min(i0 + 1, numSrc - 1);
+            float frac = static_cast<float>(srcPos - static_cast<double>(i0));
+            sample.data[static_cast<size_t>(s)] =
+                mono[static_cast<size_t>(i0)] * (1.0f - frac) +
+                mono[static_cast<size_t>(i1)] * frac;
+        }
+    }
+    return true;
+}
+
+bool LinnDrumProcessor::loadBankFromBinaryData(int bankIndex, int bankNumber, double sr)
+{
+    auto& bank = allBanks[static_cast<size_t>(bankIndex)];
+
+    // Build prefix like "b01_", "b02_", etc.
+    char bankPrefix[5];
+    std::snprintf(bankPrefix, sizeof(bankPrefix), "b%02d_", bankNumber);
+    const juce::String prefix(bankPrefix);
+
+    // Collect all BinaryData resource names matching this bank
+    struct ResEntry { juce::String name; const char* data; int size; };
+    std::vector<ResEntry> bankResources;
+
+    for (int i = 0; i < BinaryData::namedResourceListSize; ++i)
+    {
+        juce::String resName(BinaryData::namedResourceList[i]);
+        if (resName.startsWith(prefix))
+        {
+            int sz = 0;
+            const char* d = BinaryData::getNamedResource(
+                BinaryData::namedResourceList[i], sz);
+            if (d != nullptr && sz > 0)
+                bankResources.push_back({ resName, d, sz });
+        }
+    }
+
+    if (bankResources.empty())
+        return false;
+
+    // Sort by name for consistent ordering
+    std::sort(bankResources.begin(), bankResources.end(),
+              [](const ResEntry& a, const ResEntry& b) { return a.name < b.name; });
+
+    // Strip bank prefix to get the drum prefix
+    auto drumPrefix = [&](const ResEntry& r) -> juce::String {
+        return r.name.substring(prefix.length());
+    };
+
+    // Prefix-to-slot mapping (same as disk loader)
+    struct PrefixMapping { const char* prefix; int slot; };
+    static const PrefixMapping singleSlots[] = {
+        { "BD",      0 },
+        { "SD",      1 },
+        { "CH",      2 },
+        { "OH",      3 },
+        { "Ride",    4 },
+        { "Crash",   5 },
+        { "Clap",   11 },
+        { "Cowbell", 12 },
+        { "Tamb",   13 },
+        { "Cabasa", 14 }
+    };
+
+    // Load single-slot prefixes (first match per prefix)
+    for (const auto& pm : singleSlots)
+    {
+        juce::String pfx(pm.prefix);
+        for (const auto& res : bankResources)
+        {
+            if (drumPrefix(res).startsWith(pfx + "_"))
+            {
+                loadSampleFromMemory(bank.samples[static_cast<size_t>(pm.slot)],
+                                     res.data, res.size, sr);
+                break;
+            }
+        }
+    }
+
+    // Multi-slot: Tom -> indices 6 (hi), 7 (mid), 8 (lo)
+    {
+        std::vector<const ResEntry*> tomMatches;
+        for (const auto& res : bankResources)
+            if (drumPrefix(res).startsWith("Tom_"))
+                tomMatches.push_back(&res);
+
+        int tomSlots[] = { 6, 7, 8 };
+        for (size_t t = 0; t < std::min(tomMatches.size(), size_t(3)); ++t)
+            loadSampleFromMemory(bank.samples[static_cast<size_t>(tomSlots[t])],
+                                 tomMatches[t]->data, tomMatches[t]->size, sr);
+    }
+
+    // Multi-slot: Conga -> indices 9 (hi), 10 (lo)
+    {
+        std::vector<const ResEntry*> congaMatches;
+        for (const auto& res : bankResources)
+            if (drumPrefix(res).startsWith("Conga_"))
+                congaMatches.push_back(&res);
+
+        if (congaMatches.size() >= 2)
+        {
+            loadSampleFromMemory(bank.samples[9],
+                                 congaMatches.front()->data, congaMatches.front()->size, sr);
+            loadSampleFromMemory(bank.samples[10],
+                                 congaMatches.back()->data, congaMatches.back()->size, sr);
+        }
+        else if (congaMatches.size() == 1)
+        {
+            loadSampleFromMemory(bank.samples[9],
+                                 congaMatches[0]->data, congaMatches[0]->size, sr);
+        }
+    }
+
+    // SS (sidestick) -> snare slot if SD was empty
+    for (const auto& res : bankResources)
+    {
+        if (drumPrefix(res).startsWith("SS_") && bank.samples[1].data.empty())
+        {
+            loadSampleFromMemory(bank.samples[1], res.data, res.size, sr);
+            break;
+        }
+    }
+
+    return true;
 }
 
 bool LinnDrumProcessor::loadBankFromDisk(int bankIndex, const juce::String& folderName, double sr)

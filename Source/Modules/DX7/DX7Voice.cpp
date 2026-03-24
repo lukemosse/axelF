@@ -7,9 +7,7 @@ namespace axelf::dx7
 
 static inline float softClip(float x)
 {
-    if (x > 1.5f)  return 1.0f;
-    if (x < -1.5f) return -1.0f;
-    return x - (x * x * x) / 6.75f;
+    return std::tanh(x);
 }
 
 bool DX7Voice::canPlaySound(juce::SynthesiserSound* sound)
@@ -29,11 +27,13 @@ void DX7Voice::startNote(int midiNoteNumber, float vel,
     float freq = noteFrequency * bendMul;
 
     lfo.setSampleRate(getSampleRate());
+    samplesSinceNoteOn = 0;
 
     for (auto& op : operators)
     {
         op.setSampleRate(getSampleRate());
         op.setFrequency(freq);
+        op.setVelocity(velocity);
         op.noteOn();
     }
 }
@@ -89,17 +89,24 @@ void DX7Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
 
         const auto& topo = algorithm.getTopology();
 
-        // LFO modulation (mod wheel adds vibrato)
+        // LFO modulation with delay fade-in
         float lfoVal = lfo.getNextSample();
-        float totalLfoPMD = lfoPMD + modWheelValue * (1.0f - lfoPMD);
+        float lfoFade = (lfoDelaySamples > 0)
+            ? std::min(1.0f, static_cast<float>(samplesSinceNoteOn) / static_cast<float>(lfoDelaySamples))
+            : 1.0f;
+        float totalLfoPMD = (lfoPMD + modWheelValue * (1.0f - lfoPMD)) * lfoFade;
         float pitchMod = 1.0f + totalLfoPMD * lfoVal * 0.02f;
-        float ampMod = 1.0f - lfoAMD * (1.0f - lfoVal) * 0.5f;
+        float ampMod = 1.0f - (lfoAMD * lfoFade) * (1.0f - lfoVal) * 0.5f;
+        ++samplesSinceNoteOn;
 
         // Update operator frequencies with pitch bend + LFO
         float bendMul = std::pow(2.0f, pitchBendSemitones / 12.0f);
         float freq = noteFrequency * bendMul * pitchMod;
         for (auto& op : operators)
             op.setFrequency(freq);
+
+        // FM modulation depth: 2π max index gives proper FM character
+        constexpr float kFMModScale = 6.2831853f;  // 2π
 
         // Process operators in reverse order (6→1) so modulators run before carriers
         std::array<float, 6> opOut = {};
@@ -112,17 +119,21 @@ void DX7Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
             for (int j = 0; j < 6; ++j)
             {
                 if (mods & (1 << j))
-                    modInput += opOut[static_cast<size_t>(j)];
+                    modInput += opOut[static_cast<size_t>(j)] * kFMModScale;
             }
 
-            // Apply feedback if this operator is the feedback source
+            // Apply feedback (two-sample average for stability, matches DX7 OPS chip)
             if (i == topo.feedbackOp)
-                modInput += lastFeedbackSample * (static_cast<float>(feedbackAmount) / 7.0f);
+            {
+                float fbAvg = (lastFeedbackSample + prevFeedbackSample) * 0.5f;
+                modInput += fbAvg * (static_cast<float>(feedbackAmount) / 7.0f) * kFMModScale;
+            }
 
             opOut[static_cast<size_t>(i)] = operators[static_cast<size_t>(i)].processSample(modInput);
         }
 
-        // Store feedback sample from the feedback operator
+        // Store feedback history
+        prevFeedbackSample = lastFeedbackSample;
         lastFeedbackSample = opOut[static_cast<size_t>(topo.feedbackOp)];
 
         // Sum carrier outputs (scaled by carrier count to prevent stacking)
@@ -139,7 +150,7 @@ void DX7Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
         if (carrierCount > 1)
             output /= std::sqrt(static_cast<float>(carrierCount));
 
-        output = softClip(output * velocity * ampMod);
+        output = softClip(output * ampMod);
 
         int pos = startSample + sample;
         buffer.addSample(0, pos, output);
@@ -147,7 +158,7 @@ void DX7Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
     }
 }
 
-void DX7Voice::setLFOParameters(float rate, float pmd, float amd, int waveform)
+void DX7Voice::setLFOParameters(float rate, float pmd, float amd, int waveform, float delay)
 {
     // DX7 LFO speed 0-99 maps to ~0.1Hz - 50Hz
     float freq = 0.1f + (rate / 99.0f) * 49.9f;
@@ -156,6 +167,9 @@ void DX7Voice::setLFOParameters(float rate, float pmd, float amd, int waveform)
     lfoAMD = amd / 99.0f;
     lfo.setWaveform(static_cast<axelf::dsp::LFOWaveform>(
         std::clamp(waveform, 0, 4)));
+
+    // LFO delay 0-99 maps to 0-6 seconds fade-in
+    lfoDelaySamples = static_cast<int>((delay / 99.0f) * 6.0f * static_cast<float>(getSampleRate()));
 }
 
 } // namespace axelf::dx7

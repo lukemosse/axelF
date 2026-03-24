@@ -123,7 +123,7 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Set pattern length override for Song mode (total arrangement bars)
     if (arrangement.getMode() == ArrangementMode::Song)
     {
-        int totalBars = arrangement.getTotalBars();
+        int totalBars = arrangement.getTotalBars(transport.getTimeSignatureNumerator());
         if (totalBars > 0)
         {
             // Valid arrangement: override transport length to span all blocks
@@ -248,26 +248,37 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // ── 2c. SONG mode: load patterns per-module based on timeline bar ──
     if (arrangement.getMode() == ArrangementMode::Song && transport.isPlaying())
     {
-        // Force scene reload at arrangement start and on loop
+        // Force scene reload at arrangement start and on loop.
+        // Use -2 = "uninitialized" so the per-module check below can
+        // distinguish it from -1 = "already silenced".
         if (transport.didLoopReset())
-            songModeActiveScenes.fill(-1);
+            songModeActiveScenes.fill(-2);
 
-        int currentBar = transport.getCurrentBar();
+        int currentBeat = static_cast<int>(transport.getPositionInBeats());
         for (int i = 0; i < kNumModules; ++i)
         {
-            int sceneIdx = arrangement.getSceneForModuleAtBar(i, currentBar);
+            int sceneIdx = arrangement.getSceneForModuleAtBeat(i, currentBeat);
             if (sceneIdx >= 0 && sceneIdx != songModeActiveScenes[static_cast<size_t>(i)])
             {
                 patternEngine.notifySceneChanged(i);
                 sceneManager.loadSceneForModule(sceneIdx, i, patternEngine);
                 songModeActiveScenes[static_cast<size_t>(i)] = sceneIdx;
             }
+            else if (sceneIdx < 0 && songModeActiveScenes[static_cast<size_t>(i)] != -1)
+            {
+                // Lane is empty at this beat — silence the module.
+                // Triggers on first evaluation after loop reset (-2) and
+                // on transitions from an active scene (>= 0).
+                patternEngine.notifySceneChanged(i);
+                patternEngine.clearPattern(i);
+                songModeActiveScenes[static_cast<size_t>(i)] = -1;
+            }
         }
     }
     else
     {
         // Reset tracking when not in Song mode so scenes reload on re-entry
-        songModeActiveScenes.fill(-1);
+        songModeActiveScenes.fill(-2);
     }
 
     // Sync pattern bar counts from transport (skip in Song mode to preserve scene bar counts)
@@ -392,14 +403,15 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         distortion.setMix(safeLoad("fx_distortion_mix", 0.5f));
         distortion.process(aux5Buffer);
 
-        // Sum send returns into main output
+        // Sum send returns into main output (with gain compensation
+        // to prevent wet+dry summing from clipping)
         for (int ch = 0; ch < 2; ++ch)
         {
-            buffer.addFrom(ch, 0, aux1Buffer, ch, 0, numSamples);
-            buffer.addFrom(ch, 0, aux2Buffer, ch, 0, numSamples);
-            buffer.addFrom(ch, 0, aux3Buffer, ch, 0, numSamples);
-            buffer.addFrom(ch, 0, aux4Buffer, ch, 0, numSamples);
-            buffer.addFrom(ch, 0, aux5Buffer, ch, 0, numSamples);
+            buffer.addFrom(ch, 0, aux1Buffer, ch, 0, numSamples, 0.7f);   // Reverb
+            buffer.addFrom(ch, 0, aux2Buffer, ch, 0, numSamples, 0.5f);   // Delay (-6 dB)
+            buffer.addFrom(ch, 0, aux3Buffer, ch, 0, numSamples, 0.7f);   // Chorus
+            buffer.addFrom(ch, 0, aux4Buffer, ch, 0, numSamples, 0.7f);   // Flanger
+            buffer.addFrom(ch, 0, aux5Buffer, ch, 0, numSamples, 0.7f);   // Distortion
         }
     }
 
@@ -560,6 +572,38 @@ juce::File AxelFProcessor::getAutoSaveFile()
     return dir.getChildFile("autosave.axelf");
 }
 
+juce::File AxelFProcessor::getSettingsFile()
+{
+    auto dir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                   .getChildFile("AxelF");
+    dir.createDirectory();
+    return dir.getChildFile("settings.xml");
+}
+
+void AxelFProcessor::rememberLastSession()
+{
+    if (currentSessionFile == juce::File()) return;
+
+    auto xml = std::make_unique<juce::XmlElement>("AxelFSettings");
+    xml->setAttribute("lastSession", currentSessionFile.getFullPathName());
+    xml->writeTo(getSettingsFile());
+}
+
+juce::File AxelFProcessor::getLastSessionFile()
+{
+    auto settingsFile = getSettingsFile();
+    if (!settingsFile.existsAsFile()) return {};
+
+    auto xml = juce::XmlDocument::parse(settingsFile);
+    if (xml == nullptr || !xml->hasTagName("AxelFSettings")) return {};
+
+    auto path = xml->getStringAttribute("lastSession");
+    if (path.isEmpty()) return {};
+
+    juce::File f(path);
+    return f.existsAsFile() ? f : juce::File();
+}
+
 bool AxelFProcessor::saveSessionToFile(const juce::File& file)
 {
     juce::MemoryBlock data;
@@ -568,6 +612,7 @@ bool AxelFProcessor::saveSessionToFile(const juce::File& file)
     if (file.replaceWithData(data.getData(), data.getSize()))
     {
         currentSessionFile = file;
+        rememberLastSession();
         return true;
     }
     return false;
@@ -581,6 +626,7 @@ bool AxelFProcessor::loadSessionFromFile(const juce::File& file)
 
     setStateInformation(data.getData(), static_cast<int>(data.getSize()));
     currentSessionFile = file;
+    rememberLastSession();
     return true;
 }
 

@@ -6,6 +6,7 @@
 #include "../Common/PatternEngine.h"
 #include "../Common/GlobalTransport.h"
 #include "../Common/MasterMixer.h"
+#include "../Common/ArrangementTimeline.h"
 #include "AxelFColours.h"
 
 namespace axelf::ui
@@ -21,8 +22,10 @@ class ClipMatrixPanel : public juce::Component,
 {
 public:
     ClipMatrixPanel(SceneManager& sm, PatternEngine& pe,
-                    GlobalTransport& tr, MasterMixer& mx)
-        : sceneManager(sm), patternEngine(pe), transport(tr), mixer(mx)
+                    GlobalTransport& tr, MasterMixer& mx,
+                    ArrangementTimeline& arr)
+        : sceneManager(sm), patternEngine(pe), transport(tr), mixer(mx),
+          arrangement(arr)
     {
         startTimerHz(15);
     }
@@ -34,6 +37,7 @@ public:
     static constexpr int kCellMinW = 30;
     static constexpr int kCellMinH = 14;
     static constexpr int kDragThreshold = 5;
+    static constexpr int kMuteRowHeight = 20;  // bottom row: per-module mute buttons
 
     // Scene pagination (set by parent TimelinePanel)
     int sceneOffset = 0;
@@ -54,6 +58,7 @@ public:
         auto bounds = getLocalBounds().toFloat();
         g.fillAll(juce::Colour(Colours::bgDark));
 
+        const bool inactive = (arrangement.getMode() == ArrangementMode::Song);
         const int numModules = kNumModules;
         const int visScenes = std::min(numVisibleScenes,
                                        SceneManager::kMaxScenes - sceneOffset);
@@ -61,8 +66,9 @@ public:
         const float headerH = static_cast<float>(kModuleHeaderHeight);
         const float sceneW = static_cast<float>(kSceneHeaderWidth);
         const float launchW = static_cast<float>(kLaunchBtnWidth);
+        const float muteH = static_cast<float>(kMuteRowHeight);
         const float gridW = bounds.getWidth() - sceneW - launchW;
-        const float gridH = bounds.getHeight() - headerH;
+        const float gridH = bounds.getHeight() - headerH - muteH;
         const float cellW = std::max(static_cast<float>(kCellMinW),
                                      gridW / static_cast<float>(numModules));
         const float cellH = std::max(static_cast<float>(kCellMinH),
@@ -123,6 +129,8 @@ public:
             {
                 float x = sceneW + static_cast<float>(m) * cellW;
                 auto modCol = juce::Colour(moduleColours[m]);
+                if (inactive)
+                    modCol = modCol.withMultipliedSaturation(0.25f).withMultipliedBrightness(0.5f);
 
                 auto cellRect = juce::Rectangle<float>(
                     x + 1.0f, y + 1.0f, cellW - 2.0f, cellH - 2.0f);
@@ -223,6 +231,41 @@ public:
             float y = headerH + static_cast<float>(row) * cellH;
             g.drawLine(sceneW, y, sceneW + gridW, y, 0.5f);
         }
+
+        // ── Mute row (bottom) ───────────────────────────────
+        {
+            float muteY = bounds.getHeight() - muteH;
+            g.setColour(juce::Colour(Colours::bgPanel));
+            g.fillRect(0.0f, muteY, bounds.getWidth(), muteH);
+
+            g.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
+            for (int m = 0; m < numModules; ++m)
+            {
+                float x = sceneW + static_cast<float>(m) * cellW;
+                auto btnRect = juce::Rectangle<float>(x + 2.0f, muteY + 2.0f,
+                                                       cellW - 4.0f, muteH - 4.0f);
+
+                bool muted = patternEngine.isPatternMuted(m);
+                auto modCol = juce::Colour(moduleColours[m]);
+
+                if (muted)
+                {
+                    g.setColour(juce::Colour(Colours::accentRed).withAlpha(0.6f));
+                    g.fillRoundedRectangle(btnRect, 3.0f);
+                    g.setColour(juce::Colour(Colours::textPrimary));
+                    g.drawText("OFF", btnRect.toNearestInt(), juce::Justification::centred, false);
+                }
+                else
+                {
+                    g.setColour(modCol.withAlpha(0.3f));
+                    g.fillRoundedRectangle(btnRect, 3.0f);
+                    g.setColour(modCol.withAlpha(0.6f));
+                    g.drawRoundedRectangle(btnRect, 3.0f, 1.0f);
+                    g.setColour(juce::Colour(Colours::textSecondary));
+                    g.drawText("ON", btnRect.toNearestInt(), juce::Justification::centred, false);
+                }
+            }
+        }
     }
 
     void mouseDown(const juce::MouseEvent& e) override
@@ -231,10 +274,28 @@ public:
         const float sceneW = static_cast<float>(kSceneHeaderWidth);
         const float gridW = static_cast<float>(getWidth()) - sceneW
                             - static_cast<float>(kLaunchBtnWidth);
+        const float muteH = static_cast<float>(kMuteRowHeight);
+        const float muteY = static_cast<float>(getHeight()) - muteH;
+
+        // ── Mute row click ──────────────────────────────────
+        if (static_cast<float>(e.y) >= muteY)
+        {
+            float relX = static_cast<float>(e.x) - sceneW;
+            if (relX >= 0.0f && relX < gridW)
+            {
+                float cellW = std::max(static_cast<float>(kCellMinW),
+                    gridW / static_cast<float>(kNumModules));
+                int m = static_cast<int>(relX / cellW);
+                if (m >= 0 && m < kNumModules)
+                    patternEngine.setPatternMute(m, !patternEngine.isPatternMuted(m));
+            }
+            return;
+        }
+
         const int visScenes = std::min(numVisibleScenes,
                                        SceneManager::kMaxScenes - sceneOffset);
         const float cellH = std::max(static_cast<float>(kCellMinH),
-            (static_cast<float>(getHeight()) - headerH) / static_cast<float>(visScenes));
+            (static_cast<float>(getHeight()) - headerH - muteH) / static_cast<float>(visScenes));
         float launchX = sceneW + gridW;
 
         // Check if click is on scene label (left) or launch button (right)
@@ -338,10 +399,13 @@ public:
 
         if (potentialDragScene >= 0)
         {
-            if (potentialDragModule >= 0)
-                launchCellForModule(potentialDragScene, potentialDragModule);
-            else
-                launchFullScene(potentialDragScene);
+            if (arrangement.getMode() == ArrangementMode::Jam)
+            {
+                if (potentialDragModule >= 0)
+                    launchCellForModule(potentialDragScene, potentialDragModule);
+                else
+                    launchFullScene(potentialDragScene);
+            }
             potentialDragScene = -1;
             potentialDragModule = -1;
         }
@@ -352,6 +416,7 @@ private:
     PatternEngine& patternEngine;
     GlobalTransport& transport;
     MasterMixer& mixer;
+    ArrangementTimeline& arrangement;
 
     // Drag state
     int potentialDragScene = -1;
@@ -374,12 +439,16 @@ private:
         const float cellW = std::max(static_cast<float>(kCellMinW),
                                      gridW / static_cast<float>(kNumModules));
         const float cellH = std::max(static_cast<float>(kCellMinH),
-            (static_cast<float>(getHeight()) - headerH) / static_cast<float>(visScenes));
+            (static_cast<float>(getHeight()) - headerH - static_cast<float>(kMuteRowHeight))
+             / static_cast<float>(visScenes));
 
         float relX = static_cast<float>(pos.getX()) - sceneW;
         float relY = static_cast<float>(pos.getY()) - headerH;
 
         if (relX < 0 || relY < 0) return {-1, -1};
+        // Click is in the mute row area
+        if (static_cast<float>(pos.getY()) >= static_cast<float>(getHeight()) - static_cast<float>(kMuteRowHeight))
+            return {-1, -1};
 
         int module = static_cast<int>(relX / cellW);
         int row = static_cast<int>(relY / cellH);

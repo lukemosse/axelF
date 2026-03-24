@@ -80,24 +80,24 @@ public:
             {
                 const auto& evt = moduleEvents[i];
                 double relBeat = evt.startBeat - captureStartBeat;
-                int startBar = std::max(0, static_cast<int>(std::floor(relBeat / beatsPerBarD)));
+                int startBeat = std::max(0, static_cast<int>(std::floor(relBeat)));
 
-                int endBar;
+                int endBeat;
                 if (i + 1 < moduleEvents.size())
                 {
                     double nextRelBeat = moduleEvents[i + 1].startBeat - captureStartBeat;
-                    endBar = static_cast<int>(std::floor(nextRelBeat / beatsPerBarD));
-                    if (endBar <= startBar) endBar = startBar + 1;
+                    endBeat = static_cast<int>(std::floor(nextRelBeat));
+                    if (endBeat <= startBeat) endBeat = startBeat + 1;
                 }
                 else
                 {
-                    endBar = totalBars;
+                    endBeat = totalBars * captureBeatsPerBar;
                 }
 
                 TimelineBlock block;
                 block.sceneIndex = evt.sceneIndex;
-                block.startBar = startBar;
-                block.lengthBars = std::max(1, endBar - startBar);
+                block.startBeat = startBeat;
+                block.lengthBeats = std::max(1, endBeat - startBeat);
                 timeline.insertBlock(m, block);
             }
         }
@@ -140,34 +140,33 @@ public:
                                      { return a.sceneIndex == b.sceneIndex; });
             moduleEvents.erase(dedup, moduleEvents.end());
 
-            // Convert to gap-free timeline blocks using floor() for start, ceil()/next for end
             for (size_t i = 0; i < moduleEvents.size(); ++i)
             {
                 const auto& evt = moduleEvents[i];
                 double relBeat = evt.startBeat - captureStartBeat;
-                int startBar = std::max(0, static_cast<int>(std::floor(relBeat / beatsPerBarD)));
+                int startBeat = std::max(0, static_cast<int>(std::floor(relBeat)));
 
-                // End bar: use floor of next event's beat (so blocks tile exactly)
-                int endBar;
+                // End beat: use floor of next event's beat (so blocks tile exactly)
+                int endBeat;
                 if (i + 1 < moduleEvents.size())
                 {
                     double nextRelBeat = moduleEvents[i + 1].startBeat - captureStartBeat;
-                    endBar = static_cast<int>(std::floor(nextRelBeat / beatsPerBarD));
-                    // If next event lands on same bar, push end to at least startBar + 1
-                    if (endBar <= startBar)
-                        endBar = startBar + 1;
+                    endBeat = static_cast<int>(std::floor(nextRelBeat));
+                    // If next event lands on same beat, push end to at least startBeat + 1
+                    if (endBeat <= startBeat)
+                        endBeat = startBeat + 1;
                 }
                 else
                 {
-                    endBar = totalBars;
+                    endBeat = totalBars * captureBeatsPerBar;
                 }
 
-                int lengthBars = std::max(1, endBar - startBar);
+                int lengthBeats = std::max(1, endBeat - startBeat);
 
                 TimelineBlock block;
                 block.sceneIndex = evt.sceneIndex;
-                block.startBar = startBar;
-                block.lengthBars = lengthBars;
+                block.startBeat = startBeat;
+                block.lengthBeats = lengthBeats;
                 timeline.insertBlock(m, block);
             }
         }

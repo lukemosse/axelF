@@ -143,15 +143,21 @@ private:
             panLabel.setJustificationType(juce::Justification::centred);
             addAndMakeVisible(panLabel);
 
-            muteButton.setButtonText("M");
+            muteButton.setButtonText("MUTE");
             muteButton.setClickingTogglesState(true);
+            muteButton.setColour(juce::TextButton::buttonColourId, juce::Colour(ui::Colours::bgControl));
             muteButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(ui::Colours::accentRed));
+            muteButton.setColour(juce::TextButton::textColourOffId, juce::Colour(ui::Colours::textSecondary));
+            muteButton.setColour(juce::TextButton::textColourOnId, juce::Colour(ui::Colours::textPrimary));
             muteButton.onClick = [this] { strip.mute = muteButton.getToggleState(); };
             addAndMakeVisible(muteButton);
 
-            soloButton.setButtonText("S");
+            soloButton.setButtonText("SOLO");
             soloButton.setClickingTogglesState(true);
+            soloButton.setColour(juce::TextButton::buttonColourId, juce::Colour(ui::Colours::bgControl));
             soloButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(ui::Colours::accentGreen));
+            soloButton.setColour(juce::TextButton::textColourOffId, juce::Colour(ui::Colours::textSecondary));
+            soloButton.setColour(juce::TextButton::textColourOnId, juce::Colour(ui::Colours::textPrimary));
             soloButton.onClick = [this] { strip.solo = soloButton.getToggleState(); };
             addAndMakeVisible(soloButton);
 
@@ -176,9 +182,10 @@ private:
             nameLabel.setBounds(area.removeFromTop(22));
             area.removeFromTop(4);
 
-            auto bottom = area.removeFromBottom(30);
-            muteButton.setBounds(bottom.removeFromLeft(bottom.getWidth() / 2).reduced(2));
-            soloButton.setBounds(bottom.reduced(2));
+            // Large M/S buttons — full width, stacked
+            muteButton.setBounds(area.removeFromBottom(28).reduced(2));
+            soloButton.setBounds(area.removeFromBottom(28).reduced(2));
+            area.removeFromBottom(2);
 
             auto panArea = area.removeFromBottom(70);
             panKnob.setBounds(panArea.reduced(10, 0).withHeight(55));

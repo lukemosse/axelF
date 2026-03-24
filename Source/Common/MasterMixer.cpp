@@ -213,6 +213,14 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
             mainOut.addFrom (1, 0, src, 1, 0, numSamples, gainR);
         }
     }
+
+    // Master output peak
+    {
+        float mPeak = 0.0f;
+        for (int c = 0; c < mainOut.getNumChannels(); ++c)
+            mPeak = std::max (mPeak, mainOut.getMagnitude (c, 0, mainOut.getNumSamples()));
+        masterPeakLevel.store (mPeak, std::memory_order_relaxed);
+    }
 }
 
 // ── Extended process with aux send taps ──────────────────────
@@ -345,6 +353,14 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
             }
         }
     }
+
+    // Master output peak
+    {
+        float mPeak = 0.0f;
+        for (int c = 0; c < mainOut.getNumChannels(); ++c)
+            mPeak = std::max (mPeak, mainOut.getMagnitude (c, 0, mainOut.getNumSamples()));
+        masterPeakLevel.store (mPeak, std::memory_order_relaxed);
+    }
 }
 
 // ── Extended process with 5 aux send taps ────────────────────
@@ -453,6 +469,14 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
             if (s4 > 0.001f) { aux4Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s4); aux4Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s4); }
             if (s5 > 0.001f) { aux5Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s5); aux5Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s5); }
         }
+    }
+
+    // Master output peak
+    {
+        float mPeak = 0.0f;
+        for (int c = 0; c < mainOut.getNumChannels(); ++c)
+            mPeak = std::max (mPeak, mainOut.getMagnitude (c, 0, mainOut.getNumSamples()));
+        masterPeakLevel.store (mPeak, std::memory_order_relaxed);
     }
 }
 

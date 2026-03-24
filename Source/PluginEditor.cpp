@@ -36,6 +36,31 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
 
     topBar.getRecordButton().onClick = [this]() { toggleRecord(); };
 
+    // ── Wire rewind / fast-forward ───────────────────────
+    topBar.getRewindButton().onClick = [this]()
+    {
+        auto& t = processorRef.getTransport();
+        int bpb = t.getTimeSignatureNumerator();
+        double pos = t.getPositionInBeats();
+        double newPos = std::max(0.0, pos - static_cast<double>(bpb));
+        if (t.isPlaying())
+            t.setPendingCue(newPos);
+        else
+            t.seekToPosition(newPos);
+    };
+
+    topBar.getFfwdButton().onClick = [this]()
+    {
+        auto& t = processorRef.getTransport();
+        int bpb = t.getTimeSignatureNumerator();
+        double pos = t.getPositionInBeats();
+        double newPos = pos + static_cast<double>(bpb);
+        if (t.isPlaying())
+            t.setPendingCue(newPos);
+        else
+            t.seekToPosition(newPos);
+    };
+
     topBar.getBpmLabel().onTextChange = [this]()
     {
         float bpm = topBar.getBpmLabel().getText().getFloatValue();
@@ -166,6 +191,17 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
 
     // ── Session file button ──────────────────────────────────
     topBar.getFileButton().onClick = [this]() { showSessionMenu(); };
+
+    // Auto-load last opened session file on startup
+    {
+        auto lastFile = AxelFProcessor::getLastSessionFile();
+        if (lastFile != juce::File())
+        {
+            processorRef.loadSessionFromFile(lastFile);
+            sessionDirty = false;
+        }
+    }
+
     updateSessionLabel();
 
     // Auto-save every 60 seconds (standalone crash protection)
@@ -285,10 +321,14 @@ bool AxelFEditor::keyPressed(const juce::KeyPress& key)
 {
     const auto ctrl = juce::ModifierKeys::ctrlModifier;
 
-    // Ctrl+Z / Ctrl+Y — pattern undo/redo
+    // Ctrl+Z / Ctrl+Y — undo/redo (arrangement in Song mode, pattern otherwise)
     if (key == juce::KeyPress('z', ctrl, 0))
     {
-        processorRef.getPatternEngine().undo(processorRef.getActiveModule());
+        if (processorRef.getArrangement().getMode() == axelf::ArrangementMode::Song)
+            processorRef.getArrangement().undo();
+        else
+            processorRef.getPatternEngine().undo(processorRef.getActiveModule());
+        repaint();
         return true;
     }
 
@@ -329,7 +369,11 @@ bool AxelFEditor::keyPressed(const juce::KeyPress& key)
 
     if (key == juce::KeyPress('y', ctrl, 0))
     {
-        processorRef.getPatternEngine().redo(processorRef.getActiveModule());
+        if (processorRef.getArrangement().getMode() == axelf::ArrangementMode::Song)
+            processorRef.getArrangement().redo();
+        else
+            processorRef.getPatternEngine().redo(processorRef.getActiveModule());
+        repaint();
         return true;
     }
 
@@ -368,6 +412,40 @@ bool AxelFEditor::keyPressed(const juce::KeyPress& key)
                 if (auto* vpb = dynamic_cast<ui::VoicePresetBar*>(bar))
                     vpb->navigatePreset(1);
         return true;
+    }
+
+    // F1–F10: jump to marker / Ctrl+F1–F10: set marker at current position
+    {
+        int fkey = key.getKeyCode();
+        if (fkey >= juce::KeyPress::F1Key && fkey <= juce::KeyPress::F10Key)
+        {
+            int slot = fkey - juce::KeyPress::F1Key;
+            auto& arr = processorRef.getArrangement();
+            auto& t = processorRef.getTransport();
+
+            if (key.getModifiers().isCtrlDown())
+            {
+                // Set marker at current position
+                int bpb = t.getTimeSignatureNumerator();
+                int curBeat = static_cast<int>(t.getPositionInBeats());
+                int barBeat = (curBeat / bpb) * bpb;  // snap to bar
+                arr.setMarker(slot, barBeat);
+                repaint();
+            }
+            else
+            {
+                // Jump to marker
+                int beat = arr.getMarkerBeat(slot);
+                if (beat >= 0)
+                {
+                    if (t.isPlaying())
+                        t.setPendingCue(static_cast<double>(beat));
+                    else
+                        t.seekToPosition(static_cast<double>(beat));
+                }
+            }
+            return true;
+        }
     }
 
     return false;

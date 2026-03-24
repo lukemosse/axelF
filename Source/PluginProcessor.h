@@ -85,6 +85,9 @@ public:
     void setCurrentSessionFile(const juce::File& f) { currentSessionFile = f; }
     static juce::File getSessionsDirectory();
     static juce::File getAutoSaveFile();
+    static juce::File getSettingsFile();
+    void rememberLastSession();
+    static juce::File getLastSessionFile();
 
     // CPU usage (0.0–1.0) measured in processBlock
     float getCpuUsage() const { return cpuUsage.load(std::memory_order_relaxed); }
@@ -156,7 +159,7 @@ private:
     juce::File currentSessionFile;
 
     // SONG mode: track which scene each module is currently playing
-    std::array<int, kNumModules> songModeActiveScenes = { -1, -1, -1, -1, -1 };
+    std::array<int, kNumModules> songModeActiveScenes = { -2, -2, -2, -2, -2 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AxelFProcessor)
 };

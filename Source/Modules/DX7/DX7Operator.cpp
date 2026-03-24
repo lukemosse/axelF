@@ -48,7 +48,7 @@ float DX7Operator::processSample(float phaseModInput)
 
     // FM synthesis: output = sin(2π * phase + modulation)
     float out = std::sin(static_cast<float>(phase * 2.0 * 3.14159265358979323846) + phaseModInput);
-    out *= egVal * outputLevel;
+    out *= egVal * outputLevel * velocityScale;
 
     phase += phaseIncrement;
     if (phase >= 1.0)
@@ -115,12 +115,14 @@ float DX7Operator::advanceEG()
             break;
     }
 
-    // Rate to time constant
-    float speed = (rateValue + 1.0f) / (100.0f * static_cast<float>(currentSampleRate) * 0.01f);
-    egOutput += speed * (targetLevel - egOutput);
+    // DX7 rate 0-99 → linear segment time (logarithmic mapping)
+    // Rate 99 → ~2ms, Rate 50 → ~270ms, Rate 0 → ~40s
+    float timeSeconds = 40.0f * std::exp(-0.1f * rateValue);
+    float step = 1.0f / (timeSeconds * static_cast<float>(currentSampleRate));
+    step = std::max(step, 1e-8f);
 
-    // Check if we've reached the target
-    if (std::abs(egOutput - targetLevel) < 0.001f)
+    float diff = targetLevel - egOutput;
+    if (std::abs(diff) <= step)
     {
         egOutput = targetLevel;
         switch (egState)
@@ -135,8 +137,24 @@ float DX7Operator::advanceEG()
             default: break;
         }
     }
+    else
+    {
+        egOutput += (diff > 0.0f ? step : -step);
+    }
 
     return std::clamp(egOutput, 0.0f, 1.0f);
+}
+
+void DX7Operator::setVelocitySensitivity(float vs)
+{
+    velocitySensitivity = std::clamp(vs, 0.0f, 7.0f);
+}
+
+void DX7Operator::setVelocity(float vel)
+{
+    // sens 0 → no velocity effect (scale=1), sens 7 → full velocity (scale=vel)
+    float normSens = velocitySensitivity / 7.0f;
+    velocityScale = 1.0f - normSens * (1.0f - vel);
 }
 
 } // namespace axelf::dx7

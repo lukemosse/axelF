@@ -67,6 +67,18 @@ public:
         return static_cast<double>(barCount) * static_cast<double>(beatsPerBar);
     }
 
+    // Loop bars: how many bars the pattern loops over during playback (1, 2, or all)
+    void setLoopBars(int bars)
+    {
+        loopBars = std::clamp(bars, 1, barCount);
+    }
+    int getLoopBars() const { return loopBars; }
+    double getLoopLengthInBeats() const
+    {
+        int lb = std::clamp(loopBars, 1, barCount);
+        return static_cast<double>(lb) * static_cast<double>(beatsPerBar);
+    }
+
     void addEvent(const MidiEvent& event)
     {
         events.push_back(event);
@@ -90,19 +102,23 @@ public:
                           std::vector<MidiEvent>& result) const
     {
         result.clear();
-        const double patternLen = getLengthInBeats();
-        if (patternLen <= 0.0 || events.empty())
+        const double loopLen = getLoopLengthInBeats();
+        if (loopLen <= 0.0 || events.empty())
             return;
 
         for (const auto& evt : events)
         {
+            // Skip events beyond the loop region
+            if (evt.startBeat >= loopLen)
+                continue;
+
             if (evt.startBeat >= startBeat && evt.startBeat < endBeat)
                 result.push_back(evt);
 
-            // Handle wrap: if endBeat > patternLen, check events at the start
-            if (endBeat > patternLen)
+            // Handle wrap: if endBeat > loopLen, check events at the start
+            if (endBeat > loopLen)
             {
-                const double wrappedEnd = endBeat - patternLen;
+                const double wrappedEnd = endBeat - loopLen;
                 if (evt.startBeat < wrappedEnd)
                     result.push_back(evt);
             }
@@ -111,10 +127,30 @@ public:
 
     const std::vector<MidiEvent>& getEvents() const { return events; }
 
+    // Circular rotate all events by one bar within the loop region.
+    // direction > 0: shift forward (bar 1→2, last bar wraps to bar 1)
+    // direction < 0: shift backward (bar 2→1, bar 1 wraps to last bar)
+    void displaceByBar(int direction)
+    {
+        const double loopLen = getLoopLengthInBeats();
+        if (loopLen <= 0.0 || events.empty()) return;
+        const double shift = static_cast<double>(beatsPerBar) * (direction > 0 ? 1.0 : -1.0);
+        for (auto& evt : events)
+        {
+            if (evt.startBeat >= loopLen) continue;
+            evt.startBeat += shift;
+            // Wrap into [0, loopLen)
+            evt.startBeat = std::fmod(evt.startBeat, loopLen);
+            if (evt.startBeat < 0.0) evt.startBeat += loopLen;
+        }
+        sortEvents();
+    }
+
 private:
     std::vector<MidiEvent> events;
     int barCount = 4;
     int beatsPerBar = 4;
+    int loopBars = 4;  // how many bars to loop (1, 2, or barCount)
 
     void sortEvents()
     {

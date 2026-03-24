@@ -77,6 +77,12 @@ public:
     float getTilt  (int ch) const;
     float getMasterLevel() const;
 
+    // Master output peak metering (written by audio thread, read by UI timer)
+    float getMasterPeakLevel() const
+    {
+        return masterPeakLevel.load (std::memory_order_relaxed);
+    }
+
     // Thread-safe write accessors (via setValueNotifyingHost)
     void setLevel (int ch, float v);
     void setPan   (int ch, float v);
@@ -110,6 +116,7 @@ private:
 
     std::array<CachedChannel, 5> channels;
     std::atomic<float>* masterLevelPtr = nullptr;
+    std::atomic<float>  masterPeakLevel { 0.0f };
 
     // Smoothed gain values (Phase 8)
     juce::SmoothedValue<float> levelSmoothed[5];

@@ -77,6 +77,25 @@ public:
     void setPatternLengthOverride(double beats) { patternLengthOverrideBeat.store(beats); }
     double getPatternLengthOverride() const { return patternLengthOverrideBeat.load(); }
 
+    // Immediate seek: jump playback position to the given beat (audio-thread safe)
+    void seekToPosition(double beats)
+    {
+        positionInBeats = std::max(0.0, beats);
+        blockStartPosition = positionInBeats;
+    }
+
+    // Pending cue: set a cue point that will be consumed at the next bar boundary
+    void setPendingCue(double beats) { pendingCueBeat.store(beats); hasPendingCue.store(true); }
+    bool consumePendingCue(double& outBeat)
+    {
+        if (!hasPendingCue.load()) return false;
+        outBeat = pendingCueBeat.load();
+        hasPendingCue.store(false);
+        return true;
+    }
+    bool hasCuePending() const { return hasPendingCue.load(); }
+    double getPendingCueBeat() const { return pendingCueBeat.load(); }
+
     // Serialization
     std::unique_ptr<juce::XmlElement> toXml() const;
     void fromXml(const juce::XmlElement* xml);
@@ -100,6 +119,10 @@ private:
     double countInBeatsRemaining = 0.0;
     double countInBeatAccumulator = 0.0;  // tracks fractional beat for metronome ticks
     TransportState postCountInState = TransportState::Playing;  // state to enter after count-in
+
+    // Pending cue state
+    std::atomic<bool> hasPendingCue { false };
+    std::atomic<double> pendingCueBeat { 0.0 };
 };
 
 } // namespace axelf

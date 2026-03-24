@@ -23,6 +23,8 @@ public:
     // Set EG rates and levels (R1-R4, L1-L4)
     void setEGParameters(float r1, float r2, float r3, float r4,
                          float l1, float l2, float l3, float l4);
+    void setVelocitySensitivity(float vs);  // 0-7
+    void setVelocity(float vel);             // 0-1
 
 private:
     double currentSampleRate = 44100.0;
@@ -32,8 +34,10 @@ private:
     float detune = 0.0f;
     double phase = 0.0;
     double phaseIncrement = 0.0;
+    float velocitySensitivity = 0.0f;  // 0-7
+    float velocityScale = 1.0f;        // computed from sensitivity + velocity
 
-    // Simple ADSR for the operator envelope
+    // DX7-style 4-rate/4-level envelope generator
     enum class EGState { Idle, Rate1, Rate2, Rate3, Rate4 };
     EGState egState = EGState::Idle;
     float egOutput = 0.0f;
