@@ -277,10 +277,10 @@ public:
         const int laneH = laneAreaHeight / kNumModules;
 
         static constexpr juce::uint32 laneColours[kNumModules] = {
-            Colours::jupiter, Colours::moog, Colours::jx3p, Colours::dx7, Colours::linn
+            Colours::jupiter, Colours::moog, Colours::jx3p, Colours::dx7, Colours::ppgwave, Colours::linn
         };
         static const char* laneNames[kNumModules] = {
-            "JUP8", "MOOG", "JX3P", "DX7", "LINN"
+            "JUP8", "MOOG", "JX3P", "DX7", "PPG", "LINN"
         };
 
         const int beatsPerBar = std::max(1, transport.getTimeSignatureNumerator());
@@ -612,7 +612,7 @@ public:
         if (isJam && e.mods.isPopupMenu() && e.x >= arrangeAreaLeft && e.x < arrangeAreaLeft + kLaneLabelWidth)
         {
             static const char* modNames[kNumModules] = {
-                "Jupiter-8", "Moog 15", "JX-3P", "DX7", "LinnDrum"
+                "Jupiter-8", "Moog 15", "JX-3P", "DX7", "PPG Wave", "LinnDrum"
             };
             juce::PopupMenu fetchMenu;
             for (int s = 0; s < SceneManager::kMaxScenes; ++s)

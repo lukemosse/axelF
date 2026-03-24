@@ -22,6 +22,7 @@
 #include "Modules/Moog15/Moog15Processor.h"
 #include "Modules/JX3P/JX3PProcessor.h"
 #include "Modules/DX7/DX7Processor.h"
+#include "Modules/PPGWave/PPGWaveProcessor.h"
 #include "Modules/LinnDrum/LinnDrumProcessor.h"
 
 namespace axelf
@@ -61,6 +62,7 @@ public:
     moog15::Moog15Processor& getMoog15() { return moog15; }
     jx3p::JX3PProcessor& getJX3P() { return jx3p; }
     dx7::DX7Processor& getDX7() { return dx7; }
+    ppgwave::PPGWaveProcessor& getPPGWave() { return ppgWave; }
     linndrum::LinnDrumProcessor& getLinnDrum() { return linnDrum; }
     MasterMixer& getMixer() { return mixer; }
     juce::AudioProcessorValueTreeState& getMixerAPVTS() { return mixerAPVTS; }
@@ -112,7 +114,7 @@ private:
     std::atomic<int> activeModuleIndex { 0 };
     std::atomic<int> pendingAllNotesOff { -1 };
     std::atomic<float> cpuUsage { 0.0f };
-    std::array<std::atomic<bool>, kNumModules> midiActivity { {false, false, false, false, false} };
+    std::array<std::atomic<bool>, kNumModules> midiActivity { {false, false, false, false, false, false} };
     juce::MidiKeyboardState keyboardState;
     GlobalTransport transport;
     PatternEngine patternEngine;
@@ -129,16 +131,17 @@ private:
     moog15::Moog15Processor moog15;
     jx3p::JX3PProcessor jx3p;
     dx7::DX7Processor dx7;
+    ppgwave::PPGWaveProcessor ppgWave;
     linndrum::LinnDrumProcessor linnDrum;
 
     // Per-module MIDI buffers (live input)
-    juce::MidiBuffer jup8Midi, moogMidi, jx3pMidi, dx7Midi, linnMidi;
+    juce::MidiBuffer jup8Midi, moogMidi, jx3pMidi, dx7Midi, ppgMidi, linnMidi;
 
     // Per-module MIDI buffers (output from pattern engine)
-    juce::MidiBuffer jup8OutMidi, moogOutMidi, jx3pOutMidi, dx7OutMidi, linnOutMidi;
+    juce::MidiBuffer jup8OutMidi, moogOutMidi, jx3pOutMidi, dx7OutMidi, ppgOutMidi, linnOutMidi;
 
     // Per-module audio buffers
-    juce::AudioBuffer<float> jup8Buffer, moogBuffer, jx3pBuffer, dx7Buffer, linnBuffer;
+    juce::AudioBuffer<float> jup8Buffer, moogBuffer, jx3pBuffer, dx7Buffer, ppgBuffer, linnBuffer;
 
     // Aux send / return buffers
     juce::AudioBuffer<float> aux1Buffer, aux2Buffer, aux3Buffer, aux4Buffer, aux5Buffer;
@@ -159,7 +162,7 @@ private:
     juce::File currentSessionFile;
 
     // SONG mode: track which scene each module is currently playing
-    std::array<int, kNumModules> songModeActiveScenes = { -2, -2, -2, -2, -2 };
+    std::array<int, kNumModules> songModeActiveScenes = { -2, -2, -2, -2, -2, -2 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AxelFProcessor)
 };

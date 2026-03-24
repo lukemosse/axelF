@@ -32,7 +32,7 @@ void SceneManager::saveToScene(int sceneIndex, const PatternEngine& engine,
 
     auto& scene = scenes[static_cast<size_t>(sceneIndex)];
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 5; ++i)
         scene.synthPatterns[static_cast<size_t>(i)] = engine.getSynthPattern(i);
 
     scene.drumPattern = engine.getDrumPattern();
@@ -46,7 +46,7 @@ void SceneManager::loadScene(int sceneIndex, PatternEngine& engine, MixerSnapsho
 
     const auto& scene = scenes[static_cast<size_t>(sceneIndex)];
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 5; ++i)
         engine.getSynthPattern(i) = scene.synthPatterns[static_cast<size_t>(i)];
 
     engine.getDrumPattern() = scene.drumPattern;
@@ -225,7 +225,7 @@ std::unique_ptr<juce::XmlElement> SceneManager::toXml() const
         sceneXml->setAttribute("name", scene.name);
 
         // Synth patterns
-        for (int m = 0; m < 4; ++m)
+        for (int m = 0; m < 5; ++m)
         {
             const auto& sp = scene.synthPatterns[static_cast<size_t>(m)];
             auto* spXml = sceneXml->createNewChildElement("SynthPattern");
@@ -336,7 +336,7 @@ void SceneManager::fromXml(const juce::XmlElement* xml)
         for (auto* spXml : sceneXml->getChildWithTagNameIterator("SynthPattern"))
         {
             int m = spXml->getIntAttribute("module", -1);
-            if (m < 0 || m >= 4) continue;
+            if (m < 0 || m >= 5) continue;
 
             auto& sp = scene.synthPatterns[static_cast<size_t>(m)];
             sp.clear();

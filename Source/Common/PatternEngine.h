@@ -18,8 +18,9 @@ enum ModuleIndex
     kMoog15   = 1,
     kJX3P     = 2,
     kDX7      = 3,
-    kLinnDrum = 4,
-    kNumModules = 5
+    kPPGWave  = 4,
+    kLinnDrum = 5,
+    kNumModules = 6
 };
 
 enum class RecordMode
@@ -96,7 +97,7 @@ public:
     };
 
 private:
-    std::array<SynthPattern, 4> synthPatterns;
+    std::array<SynthPattern, 5> synthPatterns;
     DrumPattern drumPattern;
 
     std::array<bool, kNumModules> recordArmed = {};
@@ -105,7 +106,7 @@ private:
     std::array<bool, kNumModules> patternMuted = {};
 
     // Per-module swing (50 = straight)
-    std::array<float, kNumModules> swingPercent = { 50.f, 50.f, 50.f, 50.f, 50.f };
+    std::array<float, kNumModules> swingPercent = { 50.f, 50.f, 50.f, 50.f, 50.f, 50.f };
 
     // Scene-change flush flag (set from outside, consumed in processSynthPlayback)
     std::array<bool, kNumModules> sceneJustChanged = {};

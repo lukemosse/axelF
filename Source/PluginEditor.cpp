@@ -4,6 +4,7 @@
 #include "Modules/Moog15/Moog15Editor.h"
 #include "Modules/JX3P/JX3PEditor.h"
 #include "Modules/DX7/DX7Editor.h"
+#include "Modules/PPGWave/PPGWaveEditor.h"
 #include "Modules/LinnDrum/LinnDrumEditor.h"
 
 namespace axelf
@@ -106,6 +107,7 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
     tabs.addTab("Moog 15",    tabBg, new moog15::Moog15Editor(processorRef.getMoog15().getAPVTS(), &eng, &trp), true);
     tabs.addTab("JX-3P",      tabBg, new jx3p::JX3PEditor(processorRef.getJX3P().getAPVTS(), &eng, &trp), true);
     tabs.addTab("DX7",        tabBg, new dx7::DX7Editor(processorRef.getDX7().getAPVTS(), &eng, &trp), true);
+    tabs.addTab("PPG Wave",   tabBg, new ppgwave::PPGWaveEditor(processorRef.getPPGWave().getAPVTS(), &eng, &trp), true);
     tabs.addTab("LinnDrum",   tabBg, new linndrum::LinnDrumEditor(processorRef.getLinnDrum().getAPVTS(), &eng, &trp), true);
 
     tabs.setTabBarDepth(72);
@@ -224,7 +226,7 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
         holder->deviceManager.addChangeListener (this);
 #endif
     // ── Wire each module’s VoicePresetBar Load → PresetBrowser ──
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         if (auto* editor = tabs.getTabContentComponent(i))
         {
@@ -240,7 +242,8 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
                         case 1: apvts = &processorRef.getMoog15().getAPVTS(); break;
                         case 2: apvts = &processorRef.getJX3P().getAPVTS(); break;
                         case 3: apvts = &processorRef.getDX7().getAPVTS(); break;
-                        case 4: apvts = &processorRef.getLinnDrum().getAPVTS(); break;
+                        case 4: apvts = &processorRef.getPPGWave().getAPVTS(); break;
+                        case 5: apvts = &processorRef.getLinnDrum().getAPVTS(); break;
                         default: return;
                     }
                     presetBrowser.open(i, *apvts);
@@ -388,8 +391,8 @@ bool AxelFEditor::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // 1-5 — switch instrument tabs
-    if (key.getKeyCode() >= '1' && key.getKeyCode() <= '5' && !key.getModifiers().isAnyModifierKeyDown())
+    // 1-6 — switch instrument tabs
+    if (key.getKeyCode() >= '1' && key.getKeyCode() <= '6' && !key.getModifiers().isAnyModifierKeyDown())
     {
         int idx = key.getKeyCode() - '1';
         tabs.setCurrentTabIndex(idx);

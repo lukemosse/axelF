@@ -75,10 +75,10 @@ public:
                                      gridH / static_cast<float>(visScenes));
 
         static constexpr juce::uint32 moduleColours[kNumModules] = {
-            Colours::jupiter, Colours::moog, Colours::jx3p, Colours::dx7, Colours::linn
+            Colours::jupiter, Colours::moog, Colours::jx3p, Colours::dx7, Colours::ppgwave, Colours::linn
         };
         static const char* moduleNames[kNumModules] = {
-            "JUP8", "MOOG", "JX3P", "DX7", "LINN"
+            "JUP8", "MOOG", "JX3P", "DX7", "PPG", "LINN"
         };
 
         // ── Column headers (module names, top row) ───────────
@@ -618,7 +618,7 @@ private:
 
     static const char* getModuleName(int m)
     {
-        static const char* names[] = { "Jupiter-8", "Moog 15", "JX-3P", "DX7", "LinnDrum" };
+        static const char* names[] = { "Jupiter-8", "Moog 15", "JX-3P", "DX7", "PPG Wave", "LinnDrum" };
         return (m >= 0 && m < kNumModules) ? names[m] : "?";
     }
 

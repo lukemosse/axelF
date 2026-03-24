@@ -14,13 +14,13 @@ public:
     explicit MixerEditor(MasterMixer& mix) : mixer(mix)
     {
         startTimerHz(30); // refresh meters at 30fps
-        static const char* names[] = { "Jupiter-8", "Moog 15", "JX-3P", "DX7", "LinnDrum" };
+        static const char* names[] = { "Jupiter-8", "Moog 15", "JX-3P", "DX7", "PPG Wave", "LinnDrum" };
         static const juce::uint32 accents[] = {
             ui::Colours::jupiter, ui::Colours::moog, ui::Colours::jx3p,
-            ui::Colours::dx7, ui::Colours::linn
+            ui::Colours::dx7, ui::Colours::ppgwave, ui::Colours::linn
         };
 
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
         {
             auto* strip = new ChannelStripComp(names[i], juce::Colour(accents[i]), mixer.getStrip(i));
             strips.add(strip);
@@ -54,7 +54,7 @@ public:
 
         g.setFont(juce::Font(juce::FontOptions(13.0f, juce::Font::italic)));
         g.setColour(juce::Colour(ui::Colours::textSecondary));
-        g.drawText("5-Channel Mix + Aux Sends + Output Routing", 16, 26, 450, 16,
+        g.drawText("6-Channel Mix + Aux Sends + Output Routing", 16, 26, 450, 16,
                    juce::Justification::centredLeft);
     }
 
@@ -63,9 +63,9 @@ public:
         auto area = getLocalBounds().reduced(12);
         area.removeFromTop(40); // header space
 
-        auto stripWidth = (area.getWidth() - 120) / 5;
+        auto stripWidth = (area.getWidth() - 120) / 6;
 
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
             strips[i]->setBounds(area.removeFromLeft(stripWidth).reduced(4));
 
         area.removeFromLeft(8);
@@ -82,7 +82,7 @@ private:
 
     void timerCallback() override
     {
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
             strips[i]->updateMeter(mixer.getStrip(i).peakLevel);
     }
 

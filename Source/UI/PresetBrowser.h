@@ -19,10 +19,10 @@ class PresetBrowser : public juce::Component,
 public:
     // Module directory names matching FactoryPresets.h layout
     static constexpr const char* kModuleDirs[] = {
-        "Jupiter8", "Moog15", "JX3P", "DX7", "LinnDrum"
+        "Jupiter8", "Moog15", "JX3P", "DX7", "PPGWave", "LinnDrum"
     };
     static constexpr const char* kModuleLabels[] = {
-        "Jupiter-8", "Moog 15", "JX-3P", "DX7", "LinnDrum"
+        "Jupiter-8", "Moog 15", "JX-3P", "DX7", "PPG Wave", "LinnDrum"
     };
 
     // Category tags (derived from preset naming conventions)

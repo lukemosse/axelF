@@ -23,6 +23,7 @@ AxelFProcessor::AxelFProcessor()
         { "Moog15",   &moog15.getAPVTS()   },
         { "JX3P",     &jx3p.getAPVTS()     },
         { "DX7",      &dx7.getAPVTS()      },
+        { "PPGWave",  &ppgWave.getAPVTS()  },
         { "LinnDrum", &linnDrum.getAPVTS()  }
     });
     presetManager.loadFactoryPresets();
@@ -31,6 +32,7 @@ AxelFProcessor::AxelFProcessor()
     modMatrix.addParameterTree(&moog15.getAPVTS());
     modMatrix.addParameterTree(&jx3p.getAPVTS());
     modMatrix.addParameterTree(&dx7.getAPVTS());
+    modMatrix.addParameterTree(&ppgWave.getAPVTS());
     modMatrix.addParameterTree(&linnDrum.getAPVTS());
 }
 
@@ -40,6 +42,7 @@ void AxelFProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     moog15.prepareToPlay(sampleRate, samplesPerBlock);
     jx3p.prepareToPlay(sampleRate, samplesPerBlock);
     dx7.prepareToPlay(sampleRate, samplesPerBlock);
+    ppgWave.prepareToPlay(sampleRate, samplesPerBlock);
     linnDrum.prepareToPlay(sampleRate, samplesPerBlock);
 
     // Allocate per-module stereo buffers
@@ -47,6 +50,7 @@ void AxelFProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     moogBuffer.setSize(2, samplesPerBlock);
     jx3pBuffer.setSize(2, samplesPerBlock);
     dx7Buffer.setSize(2, samplesPerBlock);
+    ppgBuffer.setSize(2, samplesPerBlock);
     linnBuffer.setSize(2, samplesPerBlock);
 
     // Allocate aux send buffers
@@ -89,6 +93,7 @@ void AxelFProcessor::releaseResources()
     moog15.releaseResources();
     jx3p.releaseResources();
     dx7.releaseResources();
+    ppgWave.releaseResources();
     linnDrum.releaseResources();
 }
 
@@ -149,9 +154,9 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     // ── 1c. MIDI Learn: intercept CCs for learning / mapped params ──
     {
-        std::array<juce::AudioProcessorValueTreeState*, 7> allApvts = {
+        std::array<juce::AudioProcessorValueTreeState*, 8> allApvts = {
             &jupiter8.getAPVTS(), &moog15.getAPVTS(), &jx3p.getAPVTS(),
-            &dx7.getAPVTS(), &linnDrum.getAPVTS(), &mixerAPVTS, &effectsAPVTS
+            &dx7.getAPVTS(), &ppgWave.getAPVTS(), &linnDrum.getAPVTS(), &mixerAPVTS, &effectsAPVTS
         };
 
         midiLearn.processMidi(midiMessages,
@@ -169,14 +174,15 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     moogMidi.clear();
     jx3pMidi.clear();
     dx7Midi.clear();
+    ppgMidi.clear();
     linnMidi.clear();
 
     const int active = activeModuleIndex.load();
-    std::array<juce::MidiBuffer*, 5> liveMidiBufs = {
-        &jup8Midi, &moogMidi, &jx3pMidi, &dx7Midi, &linnMidi
+    std::array<juce::MidiBuffer*, 6> liveMidiBufs = {
+        &jup8Midi, &moogMidi, &jx3pMidi, &dx7Midi, &ppgMidi, &linnMidi
     };
 
-    if (active >= 0 && active < 5)
+    if (active >= 0 && active < 6)
     {
         for (const auto metadata : midiMessages)
             liveMidiBufs[static_cast<size_t>(active)]->addEvent(metadata.getMessage(),
@@ -290,10 +296,11 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     moogOutMidi.clear();
     jx3pOutMidi.clear();
     dx7OutMidi.clear();
+    ppgOutMidi.clear();
     linnOutMidi.clear();
 
-    std::array<juce::MidiBuffer*, 5> outputMidiBufs = {
-        &jup8OutMidi, &moogOutMidi, &jx3pOutMidi, &dx7OutMidi, &linnOutMidi
+    std::array<juce::MidiBuffer*, 6> outputMidiBufs = {
+        &jup8OutMidi, &moogOutMidi, &jx3pOutMidi, &dx7OutMidi, &ppgOutMidi, &linnOutMidi
     };
 
     patternEngine.processBlock(transport, liveMidiBufs, outputMidiBufs,
@@ -309,7 +316,7 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // ── 3b. Inject all-notes-off if a module switch occurred ─
     {
         int offModule = pendingAllNotesOff.exchange(-1);
-        if (offModule >= 0 && offModule < 5)
+        if (offModule >= 0 && offModule < 6)
         {
             auto* buf = outputMidiBufs[static_cast<size_t>(offModule)];
             // CC 123 = All Notes Off on channel 1
@@ -341,11 +348,12 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     processModule(moog15, moogBuffer, moogOutMidi);
     processModule(jx3p, jx3pBuffer, jx3pOutMidi);
     processModule(dx7, dx7Buffer, dx7OutMidi);
+    processModule(ppgWave, ppgBuffer, ppgOutMidi);
     processModule(linnDrum, linnBuffer, linnOutMidi);
 
     // ── 6. Mix all modules to output (with aux sends) ──────
-    std::array<juce::AudioBuffer<float>*, 5> moduleBuffers = {
-        &jup8Buffer, &moogBuffer, &jx3pBuffer, &dx7Buffer, &linnBuffer
+    std::array<juce::AudioBuffer<float>*, 6> moduleBuffers = {
+        &jup8Buffer, &moogBuffer, &jx3pBuffer, &dx7Buffer, &ppgBuffer, &linnBuffer
     };
 
     aux1Buffer.setSize(2, numSamples, false, false, true);
@@ -479,6 +487,7 @@ void AxelFProcessor::getStateInformation(juce::MemoryBlock& destData)
     addModuleState("Moog15",   moog15.getAPVTS());
     addModuleState("JX3P",     jx3p.getAPVTS());
     addModuleState("DX7",      dx7.getAPVTS());
+    addModuleState("PPGWave",  ppgWave.getAPVTS());
     addModuleState("LinnDrum", linnDrum.getAPVTS());
     addModuleState("Mixer",    mixerAPVTS);
     addModuleState("Effects",  effectsAPVTS);
@@ -529,6 +538,7 @@ void AxelFProcessor::setStateInformation(const void* data, int sizeInBytes)
     restoreModuleState("Moog15",   *root, moog15.getAPVTS());
     restoreModuleState("JX3P",     *root, jx3p.getAPVTS());
     restoreModuleState("DX7",      *root, dx7.getAPVTS());
+    restoreModuleState("PPGWave",  *root, ppgWave.getAPVTS());
     restoreModuleState("LinnDrum", *root, linnDrum.getAPVTS());
     restoreModuleState("Mixer",    *root, mixerAPVTS);
     restoreModuleState("Effects",  *root, effectsAPVTS);
@@ -647,12 +657,13 @@ void AxelFProcessor::newSession()
     resetAPVTS(moog15.getAPVTS());
     resetAPVTS(jx3p.getAPVTS());
     resetAPVTS(dx7.getAPVTS());
+    resetAPVTS(ppgWave.getAPVTS());
     resetAPVTS(linnDrum.getAPVTS());
     resetAPVTS(mixerAPVTS);
     resetAPVTS(effectsAPVTS);
 
     // Clear patterns, scenes, arrangement
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 5; ++i)
         patternEngine.getSynthPattern(i).clear();
     patternEngine.getDrumPattern().clear();
 

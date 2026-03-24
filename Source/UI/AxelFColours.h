@@ -34,6 +34,7 @@ namespace Colours
     inline constexpr juce::uint32 moog    = 0xFF8b6914;
     inline constexpr juce::uint32 jx3p    = 0xFF2b7a9e;
     inline constexpr juce::uint32 dx7     = 0xFF6b8e23;
+    inline constexpr juce::uint32 ppgwave = 0xFF6a4fa0;
     inline constexpr juce::uint32 linn    = 0xFF8b4513;
     inline constexpr juce::uint32 mixer   = 0xFF6a5acd;
 }

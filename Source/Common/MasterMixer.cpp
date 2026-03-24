@@ -9,7 +9,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createMixerParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { MixerParamIDs::levelID (i), 1 },
@@ -75,7 +75,7 @@ void MasterMixer::bindToAPVTS (juce::AudioProcessorValueTreeState& apvts)
 {
     boundAPVTS = &apvts;
 
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         channels[static_cast<size_t> (i)].level = apvts.getRawParameterValue (MixerParamIDs::levelID (i));
         channels[static_cast<size_t> (i)].pan   = apvts.getRawParameterValue (MixerParamIDs::panID (i));
@@ -95,7 +95,7 @@ void MasterMixer::bindToAPVTS (juce::AudioProcessorValueTreeState& apvts)
 // ── Prepare smoothing ────────────────────────────────────────
 void MasterMixer::prepare (double sampleRate)
 {
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         levelSmoothed[i].reset (sampleRate, 0.01); // 10ms ramp
         panSmoothed[i].reset (sampleRate, 0.01);
@@ -107,7 +107,7 @@ void MasterMixer::prepare (double sampleRate)
 
     // Tilt EQ crossover at ~1 kHz
     tiltCoeff = 1.0f - std::exp (static_cast<float> (-2.0 * juce::MathConstants<double>::pi * 1000.0 / sampleRate));
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         tiltLpStateL[i] = 0.0f;
         tiltLpStateR[i] = 0.0f;
@@ -117,7 +117,7 @@ void MasterMixer::prepare (double sampleRate)
 }
 
 // ── Audio-thread process ─────────────────────────────────────
-void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& moduleOutputs,
+void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
                            juce::AudioBuffer<float>& mainOut)
 {
     mainOut.clear();
@@ -136,7 +136,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
     const float master = masterLevelPtr ? masterLevelPtr->load (std::memory_order_relaxed) : 1.0f;
     if (prepared) masterSmoothed.setTargetValue (master);
 
-    for (size_t i = 0; i < 5; ++i)
+    for (size_t i = 0; i < 6; ++i)
     {
         auto& ch  = channels[i];
         const auto& src = *moduleOutputs[i];
@@ -224,7 +224,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
 }
 
 // ── Extended process with aux send taps ──────────────────────
-void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& moduleOutputs,
+void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
                            juce::AudioBuffer<float>& mainOut,
                            juce::AudioBuffer<float>& aux1Out,
                            juce::AudioBuffer<float>& aux2Out)
@@ -247,7 +247,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
     const float master = masterLevelPtr ? masterLevelPtr->load (std::memory_order_relaxed) : 1.0f;
     if (prepared) masterSmoothed.setTargetValue (master);
 
-    for (size_t i = 0; i < 5; ++i)
+    for (size_t i = 0; i < 6; ++i)
     {
         auto& ch  = channels[i];
         const auto& src = *moduleOutputs[i];
@@ -364,7 +364,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
 }
 
 // ── Extended process with 5 aux send taps ────────────────────
-void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& moduleOutputs,
+void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
                            juce::AudioBuffer<float>& mainOut,
                            juce::AudioBuffer<float>& aux1Out,
                            juce::AudioBuffer<float>& aux2Out,
@@ -387,7 +387,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 5>& modul
     const float master = masterLevelPtr ? masterLevelPtr->load (std::memory_order_relaxed) : 1.0f;
     if (prepared) masterSmoothed.setTargetValue (master);
 
-    for (size_t i = 0; i < 5; ++i)
+    for (size_t i = 0; i < 6; ++i)
     {
         auto& ch  = channels[i];
         const auto& src = *moduleOutputs[i];

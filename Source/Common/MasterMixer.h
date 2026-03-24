@@ -12,7 +12,7 @@ namespace axelf
 // ── Mixer parameter ID helpers ───────────────────────────────
 namespace MixerParamIDs
 {
-    static constexpr const char* kPrefixes[] = { "jup8", "moog", "jx3p", "dx7", "linn" };
+    static constexpr const char* kPrefixes[] = { "jup8", "moog", "jx3p", "dx7", "ppg", "linn" };
 
     inline juce::String levelID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_level"; }
     inline juce::String panID   (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_pan"; }
@@ -40,17 +40,17 @@ public:
     /** Call from prepareToPlay to set smoothing rates. */
     void prepare (double sampleRate);
 
-    void process (const std::array<juce::AudioBuffer<float>*, 5>& moduleOutputs,
+    void process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
                   juce::AudioBuffer<float>& mainOut);
 
     /** Extended process with aux send taps (post-fader). */
-    void process (const std::array<juce::AudioBuffer<float>*, 5>& moduleOutputs,
+    void process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
                   juce::AudioBuffer<float>& mainOut,
                   juce::AudioBuffer<float>& aux1Out,
                   juce::AudioBuffer<float>& aux2Out);
 
     /** Extended process with 5 aux send taps (post-fader). */
-    void process (const std::array<juce::AudioBuffer<float>*, 5>& moduleOutputs,
+    void process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
                   juce::AudioBuffer<float>& mainOut,
                   juce::AudioBuffer<float>& aux1Out,
                   juce::AudioBuffer<float>& aux2Out,
@@ -114,19 +114,19 @@ private:
         std::atomic<float>  peakLevel { 0.0f };
     };
 
-    std::array<CachedChannel, 5> channels;
+    std::array<CachedChannel, 6> channels;
     std::atomic<float>* masterLevelPtr = nullptr;
     std::atomic<float>  masterPeakLevel { 0.0f };
 
     // Smoothed gain values (Phase 8)
-    juce::SmoothedValue<float> levelSmoothed[5];
-    juce::SmoothedValue<float> panSmoothed[5];
+    juce::SmoothedValue<float> levelSmoothed[6];
+    juce::SmoothedValue<float> panSmoothed[6];
     juce::SmoothedValue<float> masterSmoothed;
     bool prepared = false;
 
     // Tilt EQ filter state (one-pole crossover at ~1 kHz)
-    float tiltLpStateL[5] = {};
-    float tiltLpStateR[5] = {};
+    float tiltLpStateL[6] = {};
+    float tiltLpStateR[6] = {};
     float tiltCoeff = 0.134f;  // updated in prepare()
 };
 

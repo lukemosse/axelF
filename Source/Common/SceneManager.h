@@ -33,7 +33,7 @@ struct MixerSnapshot
 struct Scene
 {
     juce::String name = "Empty";
-    std::array<SynthPattern, 4> synthPatterns;
+    std::array<SynthPattern, 5> synthPatterns;
     DrumPattern drumPattern;
     MixerSnapshot mixerState;
 };
@@ -115,8 +115,8 @@ private:
     LaunchQuantize launchQuantize = LaunchQuantize::NextBar;
 
     // Per-module JAM state
-    std::array<int, kNumModules> moduleScenes = { 0, 0, 0, 0, 0 };
-    std::array<int, kNumModules> queuedScenes = { -1, -1, -1, -1, -1 };  // -1 = no change queued
+    std::array<int, kNumModules> moduleScenes = { 0, 0, 0, 0, 0, 0 };
+    std::array<int, kNumModules> queuedScenes = { -1, -1, -1, -1, -1, -1 };  // -1 = no change queued
 };
 
 } // namespace axelf

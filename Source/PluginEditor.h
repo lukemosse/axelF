@@ -61,7 +61,7 @@ private:
             if (prev != newIndex && prev >= 0 && prev < kNumModules)
                 proc.queueAllNotesOff(prev);
 
-            if (newIndex >= 0 && newIndex < 5)
+            if (newIndex >= 0 && newIndex < 6)
                 proc.setActiveModule(newIndex);
 
             if (onTabChanged)

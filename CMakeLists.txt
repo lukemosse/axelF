@@ -83,6 +83,13 @@ target_sources(AxelF
         Source/Modules/DX7/DX7Algorithm.cpp
         Source/Modules/DX7/DX7Params.cpp
 
+        # PPG Wave
+        Source/Modules/PPGWave/PPGWaveParams.cpp
+        Source/Modules/PPGWave/PPGWaveOsc.cpp
+        Source/Modules/PPGWave/SSM2044Filter.cpp
+        Source/Modules/PPGWave/PPGWaveVoice.cpp
+        Source/Modules/PPGWave/PPGWaveProcessor.cpp
+
         # LinnDrum
         Source/Modules/LinnDrum/LinnDrumProcessor.cpp
         Source/Modules/LinnDrum/LinnDrumEditor.cpp

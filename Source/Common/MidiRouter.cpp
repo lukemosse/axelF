@@ -8,12 +8,14 @@ void MidiRouter::routeMidi(const juce::MidiBuffer& input,
                             juce::MidiBuffer& moog15Midi,
                             juce::MidiBuffer& jx3pMidi,
                             juce::MidiBuffer& dx7Midi,
+                            juce::MidiBuffer& ppgwaveMidi,
                             juce::MidiBuffer& linnDrumMidi)
 {
     jupiter8Midi.clear();
     moog15Midi.clear();
     jx3pMidi.clear();
     dx7Midi.clear();
+    ppgwaveMidi.clear();
     linnDrumMidi.clear();
 
     for (const auto metadata : input)
@@ -22,8 +24,8 @@ void MidiRouter::routeMidi(const juce::MidiBuffer& input,
         const int channel = msg.getChannel();  // 1-16, 0 for non-channel messages
         const int samplePosition = metadata.samplePosition;
 
-        std::array<juce::MidiBuffer*, 5> buffers = {
-            &jupiter8Midi, &moog15Midi, &jx3pMidi, &dx7Midi, &linnDrumMidi
+        std::array<juce::MidiBuffer*, 6> buffers = {
+            &jupiter8Midi, &moog15Midi, &jx3pMidi, &dx7Midi, &ppgwaveMidi, &linnDrumMidi
         };
 
         if (channel == 0)
@@ -34,7 +36,7 @@ void MidiRouter::routeMidi(const juce::MidiBuffer& input,
         }
         else
         {
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < 6; ++i)
             {
                 if (moduleChannels[static_cast<size_t>(i)] == 0 ||
                     moduleChannels[static_cast<size_t>(i)] == channel)
@@ -48,13 +50,13 @@ void MidiRouter::routeMidi(const juce::MidiBuffer& input,
 
 void MidiRouter::setModuleChannel(int moduleIndex, int channel)
 {
-    if (moduleIndex >= 0 && moduleIndex < 5)
+    if (moduleIndex >= 0 && moduleIndex < 6)
         moduleChannels[static_cast<size_t>(moduleIndex)] = channel;
 }
 
 int MidiRouter::getModuleChannel(int moduleIndex) const
 {
-    if (moduleIndex >= 0 && moduleIndex < 5)
+    if (moduleIndex >= 0 && moduleIndex < 6)
         return moduleChannels[static_cast<size_t>(moduleIndex)];
     return 0;
 }

@@ -192,15 +192,16 @@ public:
 
         // MIDI activity LEDs (5 dots between logo and transport area)
         {
-            static const juce::Colour ledColours[5] = {
+            static const juce::Colour ledColours[6] = {
                 juce::Colour(0xFFFF6B6B), // Jupiter-8 red
                 juce::Colour(0xFF4ECDC4), // Moog teal
                 juce::Colour(0xFFFFD93D), // JX-3P yellow
                 juce::Colour(0xFF6C5CE7), // DX7 purple
+                juce::Colour(0xFF6a4fa0), // PPG Wave purple
                 juce::Colour(0xFFFF9F43), // LinnDrum orange
             };
             const float ledY = static_cast<float>(getHeight() - 10);
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < 6; ++i)
             {
                 float ledX = 14.0f + static_cast<float>(i) * 22.0f;
                 g.setColour(midiLedState[static_cast<size_t>(i)]
@@ -333,7 +334,7 @@ private:
     juce::ComboBox barCountBox;
     juce::TextButton fileButton;
     juce::Label sessionLabel;
-    std::array<bool, 5> midiLedState { false, false, false, false, false };
+    std::array<bool, 6> midiLedState { false, false, false, false, false, false };
 
     void timerCallback() override
     {
@@ -388,7 +389,7 @@ private:
         // MIDI activity LEDs: poll and decay
         if (onGetMidiActivity)
         {
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < 6; ++i)
                 midiLedState[static_cast<size_t>(i)] = onGetMidiActivity(i);
             repaint(0, getHeight() - 14, 130, 14);
         }

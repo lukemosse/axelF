@@ -13,12 +13,12 @@ PatternEngine::PatternEngine()
 
 SynthPattern& PatternEngine::getSynthPattern(int moduleIndex)
 {
-    return synthPatterns[static_cast<size_t>(std::clamp(moduleIndex, 0, 3))];
+    return synthPatterns[static_cast<size_t>(std::clamp(moduleIndex, 0, 4))];
 }
 
 const SynthPattern& PatternEngine::getSynthPattern(int moduleIndex) const
 {
-    return synthPatterns[static_cast<size_t>(std::clamp(moduleIndex, 0, 3))];
+    return synthPatterns[static_cast<size_t>(std::clamp(moduleIndex, 0, 4))];
 }
 
 void PatternEngine::setRecordArm(int moduleIndex, bool armed)
@@ -183,7 +183,7 @@ std::unique_ptr<juce::XmlElement> PatternEngine::toXml() const
     auto xml = std::make_unique<juce::XmlElement>("PatternEngine");
 
     // Synth patterns
-    for (int m = 0; m < 4; ++m)
+    for (int m = 0; m < 5; ++m)
     {
         const auto& sp = synthPatterns[static_cast<size_t>(m)];
         auto* spXml = xml->createNewChildElement("SynthPattern");
@@ -264,7 +264,7 @@ void PatternEngine::fromXml(const juce::XmlElement* xml)
     for (auto* spXml : xml->getChildWithTagNameIterator("SynthPattern"))
     {
         int m = spXml->getIntAttribute("module", -1);
-        if (m < 0 || m >= 4) continue;
+        if (m < 0 || m >= 5) continue;
 
         auto& sp = synthPatterns[static_cast<size_t>(m)];
         sp.clear();

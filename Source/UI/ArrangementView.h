@@ -74,10 +74,10 @@ public:
 
         // Module colours
         static constexpr juce::uint32 laneColours[kNumLanes] = {
-            Colours::jupiter, Colours::moog, Colours::jx3p, Colours::dx7, Colours::linn
+            Colours::jupiter, Colours::moog, Colours::jx3p, Colours::dx7, Colours::ppgwave, Colours::linn
         };
         static const char* laneNames[kNumLanes] = {
-            "JUP8", "MOOG", "JX3P", "DX7", "LINN"
+            "JUP8", "MOOG", "JX3P", "DX7", "PPG", "LINN"
         };
 
         for (int lane = 0; lane < kNumLanes; ++lane)
@@ -97,7 +97,7 @@ public:
             // Pattern blocks
             auto laneCol = juce::Colour(laneColours[lane]);
 
-            if (lane < 4) // synth modules
+            if (lane < 5) // synth modules
             {
                 const auto& pat = patternEngine.getSynthPattern(lane);
                 int patBars = pat.getBarCount();
@@ -219,7 +219,7 @@ public:
     }
 
 private:
-    static constexpr int kNumLanes = 5;
+    static constexpr int kNumLanes = 6;
 
     SceneManager& sceneManager;
     PatternEngine& patternEngine;

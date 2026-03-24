@@ -9,7 +9,7 @@ namespace axelf::ui
 {
 
 // ── Vertical mixer panel on the right side of the editor ──────
-// 5 channel strips + master strip, each with vertical fader,
+// 6 channel strips + master strip, each with vertical fader,
 // mute/solo, pan knob, send knobs (reverb/delay), and meter.
 // Master strip adds EQ/comp/limiter controls.
 class MixerSidePanel : public juce::Component, private juce::Timer
@@ -22,13 +22,13 @@ public:
     {
         startTimerHz (30);
 
-        static const char* names[] = { "JUP8", "MOOG", "JX3P", "DX7", "LINN" };
+        static const char* names[] = { "JUP8", "MOOG", "JX3P", "DX7", "PPG", "LINN" };
         static const juce::uint32 accents[] = {
             Colours::jupiter, Colours::moog, Colours::jx3p,
-            Colours::dx7, Colours::linn
+            Colours::dx7, Colours::ppgwave, Colours::linn
         };
 
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
         {
             auto& s = strips[i];
             s.name   = names[i];
@@ -138,7 +138,7 @@ public:
                     return;
 
                 updatingExclusive = true;
-                for (int j = 0; j < 5; ++j)
+                for (int j = 0; j < 6; ++j)
                     mixer.setMute (j, false);
                 updatingExclusive = false;
             };
@@ -163,7 +163,7 @@ public:
                     return;
 
                 updatingExclusive = true;
-                for (int j = 0; j < 5; ++j)
+                for (int j = 0; j < 6; ++j)
                     mixer.setSolo (j, false);
                 updatingExclusive = false;
             };
@@ -247,7 +247,7 @@ public:
     MixerSidePanel (MasterMixer& mix, juce::AudioProcessorValueTreeState& mixApvts)
         : MixerSidePanel (mix, mixApvts, mixApvts) {}   // sends attach will fail silently (no fx_ IDs) — safe
 
-    void setActiveModule (int idx) { activeModule = std::clamp (idx, -1, 4); repaint(); }
+    void setActiveModule (int idx) { activeModule = std::clamp (idx, -1, 5); repaint(); }
 
     void paint (juce::Graphics& g) override
     {
@@ -261,11 +261,11 @@ public:
         g.setColour (juce::Colour (Colours::borderSubtle).withAlpha (0.6f));
         g.fillRect (0.0f, 0.0f, 1.0f, b.getHeight());
 
-        const int totalStrips = 8; // 5 ch + 2 FX + master
+        const int totalStrips = 9; // 6 ch + 2 FX + master
         const float stripW = b.getWidth() / static_cast<float> (totalStrips);
 
         // ── Channel strip labels and meters ──────────────────
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
         {
             const float x = static_cast<float> (i) * stripW;
 
@@ -322,10 +322,10 @@ public:
             }
         }
 
-        // ── FX columns (indices 5 and 6) ─────────────────────
+        // ── FX columns (indices 6 and 7) ─────────────────
         for (int col = 0; col < 2; ++col)
         {
-            float fxX = (5.0f + col) * stripW;
+            float fxX = (6.0f + col) * stripW;
             g.setColour (juce::Colour (0xFF0a0d18));
             g.fillRect (fxX, 0.0f, stripW, b.getHeight());
             g.setColour (juce::Colour (Colours::borderSubtle).withAlpha (0.3f));
@@ -339,7 +339,7 @@ public:
 
         // FX sub-labels and knob labels — column 1 (reverb, delay, chorus)
         {
-            float fxX = 5.0f * stripW;
+            float fxX = 6.0f * stripW;
             float fxLabelX = fxX + 2.0f;
             float fxLabelW = stripW - 4.0f;
             g.setFont (juce::Font(juce::FontOptions(7.0f, juce::Font::bold)));
@@ -369,7 +369,7 @@ public:
 
         // FX sub-labels and knob labels — column 2 (flanger, distortion)
         {
-            float fxX = 6.0f * stripW;
+            float fxX = 7.0f * stripW;
             float fxLabelX = fxX + 2.0f;
             float fxLabelW = stripW - 4.0f;
             g.setFont (juce::Font(juce::FontOptions(7.0f, juce::Font::bold)));
@@ -393,7 +393,7 @@ public:
         }
 
         // ── Master strip (rightmost) ─────────────────────────
-        float masterX = 7.0f * stripW;
+        float masterX = 8.0f * stripW;
         g.setColour (juce::Colour (0xFF152540));
         g.fillRect (masterX, 0.0f, stripW, b.getHeight());
         g.setColour (juce::Colour (Colours::borderSubtle).withAlpha (0.3f));
@@ -452,7 +452,7 @@ public:
     void resized() override
     {
         auto area = getLocalBounds();
-        const int totalStrips = 8;
+        const int totalStrips = 9;
         const int stripW = area.getWidth() / totalStrips;
         // Match channel-strip knobs to FX/Master knob sizing
         const int availH_all = area.getHeight() - 18;
@@ -466,8 +466,8 @@ public:
 
         sendAreaTop_ = static_cast<float>(area.getHeight() - sendsH);
 
-        // ── 5 channel strips ─────────────────────────────────
-        for (int i = 0; i < 5; ++i)
+        // ── 6 channel strips ─────────────────────────────
+        for (int i = 0; i < 6; ++i)
         {
             auto& s = strips[i];
             int x = i * stripW;
@@ -506,9 +506,9 @@ public:
             }
         }
 
-        // ── FX column 1 (reverb, delay, chorus): index 5 ────
+        // ── FX column 1 (reverb, delay, chorus): index 6 ────
         {
-            int x = 5 * stripW;
+            int x = 6 * stripW;
             int availH = area.getHeight() - 18;
             int fxKnobSize = std::min (stripW - 4, std::max (20, (availH - 3 * 12 - 2 * 2) / 6));
             fxKnobH = fxKnobSize;
@@ -535,9 +535,9 @@ public:
             chorusDepth.setBounds (cx, y, fxKnobSize, fxKnobSize);
         }
 
-        // ── FX column 2 (flanger, distortion): index 6 ──────
+        // ── FX column 2 (flanger, distortion): index 7 ──────
         {
-            int x = 6 * stripW;
+            int x = 7 * stripW;
             int availH = area.getHeight() - 18;
             int fxKnobSize = std::min (stripW - 4, std::max (20, (availH - 2 * 12 - 1 * 2) / 4));
             fxKnobH = std::min (fxKnobH, fxKnobSize);  // keep consistent
@@ -558,9 +558,9 @@ public:
             distTone.setBounds (cx, y, fxKnobSize, fxKnobSize);
         }
 
-        // ── Master strip (rightmost, index 7) ────────────────
+        // ── Master strip (rightmost, index 8) ────────────
         {
-            int x = 7 * stripW;
+            int x = 8 * stripW;
             int y = 16;
             int availH = area.getHeight() - 18;
             // Match FX column knob sizes for consistency
@@ -602,7 +602,7 @@ public:
 private:
     void timerCallback() override
     {
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
             strips[i].peakLevel = mixer.getPeakLevel (i);
         masterPeakLevel_ = mixer.getMasterPeakLevel();
         repaint();
@@ -642,7 +642,7 @@ private:
         float peakLevel = 0.0f;
     };
 
-    StripUI strips[5];
+    StripUI strips[6];
 
     // ── Master strip ─────────────────────────────────────────
     juce::Slider masterFader;
@@ -685,7 +685,7 @@ private:
     float sendAreaTop_ = 400.0f;
     int sendKnobSize_ = 24;
     int sendLabelW_ = 16;
-    int sendKnobYs_[5][5] = {};
+    int sendKnobYs_[6][5] = {};
 };
 
 } // namespace axelf::ui
