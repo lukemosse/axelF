@@ -1,0 +1,51 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# IDE / editor
+.vs/
+.vscode/settings.json
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.cachefile
+
+# Compiled objects
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.vst3
+
+# OS junk
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Temp / debug / log artefacts
+_tmp_*
+*.log
+dbg_*.txt
+build_*.txt
+crash_*.txt
+disasm*.txt
+disk_*.txt
+diskcheck*.txt
+check*.txt
+b[0-9].txt
+b[0-9][0-9].txt
+dc[0-9].txt
+dc[0-9][0-9].txt
+dbg_*.txt
+axelf_diag.txt
+dbg_wrapper.cpp
+*.ps1
+
+# Package caches
+node_modules/

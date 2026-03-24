@@ -1,0 +1,1 @@
+const fs = require('fs'); const glob = require('glob'); glob.sync('Source/Modules/**/*Editor.h').forEach(f => { let content = fs.readFileSync(f, 'utf8'); content = content.replace(/setSize\(1200, 650\);\s*/, ''); content = content.replace(/}\s*void paint/, '    setSize(1200, 650);\n    }\n\n    void paint'); fs.writeFileSync(f, content); console.log('Fixed ' + f); });

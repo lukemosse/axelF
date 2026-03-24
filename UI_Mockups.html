@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AxelF Synthesizer Workstation — UI Mockups</title>
+<style>
+  :root {
+    --bg-dark: #1a1a2e;
+    --bg-panel: #232340;
+    --bg-section: #2d2d4a;
+    --bg-control: #3a3a5c;
+    --accent-gold: #d4a843;
+    --accent-blue: #5b8bd4;
+    --accent-red: #d45b5b;
+    --accent-green: #5bd47a;
+    --accent-orange: #d4935b;
+    --text-primary: #e8e8f0;
+    --text-secondary: #9898b0;
+    --text-label: #b0b0cc;
+    --border-subtle: #404060;
+    --knob-track: #555578;
+    --jupiter-accent: #c44;
+    --moog-accent: #8b6914;
+    --jx3p-accent: #2b7a9e;
+    --dx7-accent: #6b8e23;
+    --linn-accent: #8b4513;
+    --mixer-accent: #6a5acd;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: auto;
+  }
+
+  /* ── Top Bar ────────────────────────── */
+  .top-bar {
+    background: linear-gradient(180deg, #2a2a48, #1a1a30);
+    border-bottom: 2px solid var(--accent-gold);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--accent-gold);
+    text-shadow: 0 0 20px rgba(212,168,67,0.3);
+  }
+  .logo span { color: var(--text-primary); font-weight: 300; font-size: 16px; margin-left: 12px; letter-spacing: 1px; }
+  .top-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .preset-display {
+    background: #111122;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 6px 16px;
+    color: var(--accent-gold);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    min-width: 200px;
+    text-align: center;
+  }
+  .top-btn {
+    background: var(--bg-control);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .top-btn:hover { background: #4a4a6c; }
+
+  /* ── Tab Navigation ─────────────────── */
+  .tab-bar {
+    display: flex;
+    background: #16162a;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0 10px;
+  }
+  .tab {
+    padding: 12px 24px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.03); }
+  .tab.active { color: var(--text-primary); }
+  .tab[data-tab="jupiter8"].active { border-bottom-color: var(--jupiter-accent); color: #f88; }
+  .tab[data-tab="moog15"].active { border-bottom-color: var(--moog-accent); color: #d4a843; }
+  .tab[data-tab="jx3p"].active { border-bottom-color: var(--jx3p-accent); color: #5bc4e8; }
+  .tab[data-tab="dx7"].active { border-bottom-color: var(--dx7-accent); color: #a0c850; }
+  .tab[data-tab="linndrum"].active { border-bottom-color: var(--linn-accent); color: #d49060; }
+  .tab[data-tab="mixer"].active { border-bottom-color: var(--mixer-accent); color: #9a8aed; }
+  .tab .midi-ch {
+    font-size: 9px;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* ── Panel Container ────────────────── */
+  .panel-container {
+    padding: 16px;
+    min-height: calc(100vh - 110px);
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Common Panel Styles ────────────── */
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .panel-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .panel-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+  .voice-indicator {
+    margin-left: auto;
+    display: flex;
+    gap: 4px;
+  }
+  .voice-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--bg-control);
+    border: 1px solid var(--border-subtle);
+  }
+  .voice-dot.lit { background: var(--accent-green); box-shadow: 0 0 6px rgba(91,212,122,0.5); }
+
+  /* ── Section Boxes ──────────────────── */
+  .sections-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .section {
+    background: var(--bg-section);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 12px 16px;
+    flex: 1;
+    min-width: 180px;
+  }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  /* Module-specific section title colors */
+  .jupiter8-panel .section-title { color: var(--jupiter-accent); }
+  .moog15-panel .section-title { color: var(--moog-accent); }
+  .jx3p-panel .section-title { color: var(--jx3p-accent); }
+  .dx7-panel .section-title { color: var(--dx7-accent); }
+  .linndrum-panel .section-title { color: var(--linn-accent); }
+  .mixer-panel .section-title { color: var(--mixer-accent); }
+
+  /* ── Knob ────────────────────────────── */
+  .knob-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: flex-start;
+  }
+  .knob {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 56px;
+  }
+  .knob-dial {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #5a5a80, #2a2a48);
+    border: 2px solid #666688;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.1);
+  }
+  .knob-dial::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 14px;
+    background: var(--text-primary);
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%) rotate(var(--rotation, -130deg));
+    transform-origin: bottom center;
+    border-radius: 1px;
+  }
+  .knob-dial.pos-min::after { --rotation: -130deg; }
+  .knob-dial.pos-low::after { --rotation: -80deg; }
+  .knob-dial.pos-mid::after { --rotation: 0deg; }
+  .knob-dial.pos-high::after { --rotation: 80deg; }
+  .knob-dial.pos-max::after { --rotation: 130deg; }
+  .knob-label {
+    font-size: 9px;
+    color: var(--text-label);
+    text-align: center;
+    margin-top: 4px;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .knob-value {
+    font-size: 8px;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ── Slider (Vertical) ──────────────── */
+  .slider-group {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+  .v-slider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 40px;
+  }
+  .v-slider-track {
+    width: 6px;
+    height: 80px;
+    background: var(--knob-track);
+    border-radius: 3px;
+    position: relative;
+    border: 1px solid #444466;
+  }
+  .v-slider-thumb {
+    position: absolute;
+    width: 18px;
+    height: 8px;
+    background: linear-gradient(180deg, #aaa, #777);
+    border-radius: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  .v-slider-label {
+    font-size: 9px;
+    color: var(--text-label);
+    margin-top: 6px;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  /* ── Toggle / Switch ────────────────── */
+  .switch-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .switch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .switch-body {
+    width: 36px;
+    height: 18px;
+    background: #333355;
+    border-radius: 9px;
+    border: 1px solid var(--border-subtle);
+    position: relative;
+  }
+  .switch-body::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #888;
+    top: 1px;
+    left: 1px;
+    transition: left 0.2s;
+  }
+  .switch-body.on::after {
+    left: 19px;
+    background: var(--accent-green);
+    box-shadow: 0 0 6px rgba(91,212,122,0.4);
+  }
+  .switch-label {
+    font-size: 9px;
+    color: var(--text-label);
+    text-transform: uppercase;
+  }
+
+  /* ── Selector (waveform/mode) ───────── */
+  .selector {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .selector-label {
+    font-size: 9px;
+    color: var(--text-label);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .selector-options {
+    display: flex;
+    gap: 2px;
+  }
+  .selector-opt {
+    padding: 4px 8px;
+    font-size: 10px;
+    background: var(--bg-control);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .selector-opt:first-child { border-radius: 3px 0 0 3px; }
+  .selector-opt:last-child { border-radius: 0 3px 3px 0; }
+  .selector-opt.selected {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+  }
+  .jupiter8-panel .selector-opt.selected { background: var(--jupiter-accent); border-color: var(--jupiter-accent); }
+  .moog15-panel .selector-opt.selected { background: var(--moog-accent); border-color: var(--moog-accent); }
+  .jx3p-panel .selector-opt.selected { background: var(--jx3p-accent); border-color: var(--jx3p-accent); }
+  .dx7-panel .selector-opt.selected { background: var(--dx7-accent); border-color: var(--dx7-accent); }
+  .linndrum-panel .selector-opt.selected { background: var(--linn-accent); border-color: var(--linn-accent); }
+
+  /* ── LED Indicator ──────────────────── */
+  .led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #333;
+    border: 1px solid #555;
+  }
+  .led.on-red { background: #f44; box-shadow: 0 0 6px rgba(255,68,68,0.5); }
+  .led.on-green { background: #4f4; box-shadow: 0 0 6px rgba(68,255,68,0.5); }
+  .led.on-amber { background: #fa4; box-shadow: 0 0 6px rgba(255,170,68,0.5); }
+
+  /* ── ADSR Visual ────────────────────── */
+  .adsr-visual {
+    width: 100%;
+    height: 50px;
+    margin-bottom: 8px;
+  }
+  .adsr-visual svg { width: 100%; height: 100%; }
+  .adsr-visual path {
+    fill: none;
+    stroke-width: 2;
+    opacity: 0.8;
+  }
+
+  /* ── Patchbay ───────────────────────── */
+  .patchbay {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .patch-point {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--bg-control);
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+  }
+  .patch-jack {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #111;
+    border: 2px solid #666;
+  }
+  .patch-jack.connected {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 4px rgba(212,168,67,0.4);
+  }
+  .patch-label {
+    font-size: 9px;
+    color: var(--text-label);
+  }
+
+  /* ── DX7 Algorithm Display ──────────── */
+  .algo-display {
+    background: #0a1a0a;
+    border: 2px solid var(--dx7-accent);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+    min-height: 120px;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .algo-number {
+    font-size: 36px;
+    color: var(--dx7-accent);
+    font-weight: 700;
+  }
+  .algo-diagram {
+    font-size: 11px;
+    color: #6b8e6b;
+    white-space: pre;
+    line-height: 1.3;
+    margin-top: 6px;
+  }
+
+  /* ── DX7 Operator Strip ─────────────── */
+  .op-strip {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-control);
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .op-number {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--dx7-accent);
+    width: 28px;
+    text-align: center;
+  }
+  .op-eg-mini {
+    width: 80px;
+    height: 30px;
+  }
+  .op-eg-mini svg { width: 100%; height: 100%; }
+
+  /* ── LinnDrum Pads ──────────────────── */
+  .drum-pads {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .drum-pad {
+    background: var(--bg-control);
+    border: 2px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.1s;
+    min-height: 70px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+  }
+  .drum-pad:hover { border-color: var(--linn-accent); }
+  .drum-pad.selected {
+    border-color: var(--linn-accent);
+    background: rgba(139,69,19,0.2);
+    box-shadow: 0 0 8px rgba(139,69,19,0.3);
+  }
+  .drum-pad-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .drum-pad-note {
+    font-size: 8px;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ── Step Sequencer ─────────────────── */
+  .sequencer {
+    margin-top: 12px;
+  }
+  .seq-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 3px;
+  }
+  .seq-label {
+    width: 60px;
+    font-size: 9px;
+    color: var(--text-label);
+    text-align: right;
+    padding-right: 8px;
+    text-transform: uppercase;
+  }
+  .seq-step {
+    width: 28px;
+    height: 20px;
+    background: var(--bg-control);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .seq-step.active {
+    background: var(--linn-accent);
+    border-color: #c06020;
+    box-shadow: 0 0 4px rgba(139,69,19,0.4);
+  }
+  .seq-step.beat { border-bottom: 2px solid var(--accent-gold); }
+  .seq-step-num {
+    width: 28px;
+    text-align: center;
+    font-size: 8px;
+    color: var(--text-secondary);
+  }
+  .seq-playhead {
+    background: var(--accent-green) !important;
+    box-shadow: 0 0 8px rgba(91,212,122,0.5) !important;
+  }
+
+  /* ── Mixer Channel Strip ────────────── */
+  .mixer-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--bg-section);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    min-width: 90px;
+  }
+  .mixer-strip-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .mixer-meter {
+    width: 12px;
+    height: 100px;
+    background: #111;
+    border: 1px solid var(--border-subtle);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .mixer-meter-fill {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: linear-gradient(to top, var(--accent-green), #cc0);
+    border-radius: 0 0 2px 2px;
+  }
+  .mixer-fader-track {
+    width: 8px;
+    height: 120px;
+    background: #333;
+    border-radius: 4px;
+    position: relative;
+    border: 1px solid #444;
+  }
+  .mixer-fader-thumb {
+    width: 24px;
+    height: 10px;
+    background: linear-gradient(180deg, #ccc, #888);
+    border-radius: 2px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .mixer-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .mixer-btn {
+    width: 28px;
+    height: 20px;
+    border-radius: 3px;
+    border: 1px solid var(--border-subtle);
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .mixer-btn.mute { background: #333; color: #888; }
+  .mixer-btn.mute.active { background: var(--accent-red); color: #fff; }
+  .mixer-btn.solo { background: #333; color: #888; }
+  .mixer-btn.solo.active { background: var(--accent-gold); color: #111; }
+
+  /* ── Pan Knob (small) ───────────────── */
+  .pan-knob {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #5a5a80, #2a2a48);
+    border: 1.5px solid #666688;
+    position: relative;
+  }
+  .pan-knob::after {
+    content: '';
+    position: absolute;
+    width: 1.5px;
+    height: 9px;
+    background: white;
+    top: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 1px;
+  }
+
+  /* ── Keyboard ───────────────────────── */
+  .keyboard {
+    display: flex;
+    margin-top: 12px;
+    height: 48px;
+    position: relative;
+    user-select: none;
+  }
+  .white-key {
+    width: 24px;
+    height: 48px;
+    background: linear-gradient(180deg, #eee, #ccc);
+    border: 1px solid #999;
+    border-radius: 0 0 3px 3px;
+    position: relative;
+    z-index: 1;
+  }
+  .white-key:hover { background: linear-gradient(180deg, #fff, #ddd); }
+  .black-key {
+    width: 16px;
+    height: 30px;
+    background: linear-gradient(180deg, #444, #222);
+    border: 1px solid #111;
+    border-radius: 0 0 2px 2px;
+    position: absolute;
+    z-index: 2;
+  }
+  .black-key:hover { background: linear-gradient(180deg, #555, #333); }
+
+  /* ── Utility ────────────────────────── */
+  .flex-row { display: flex; gap: 12px; align-items: flex-start; }
+  .flex-col { display: flex; flex-direction: column; gap: 8px; }
+  .gap-6 { gap: 6px; }
+  .mt-8 { margin-top: 8px; }
+  .mb-8 { margin-bottom: 8px; }
+  .w-full { width: 100%; }
+  .flex-1 { flex: 1; }
+  .text-center { text-align: center; }
+  .text-sm { font-size: 11px; }
+  .text-xs { font-size: 9px; color: var(--text-secondary); }
+
+  /* ── Scrollbar ──────────────────────── */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--bg-control); border-radius: 4px; }
+
+  /* ── Responsive ─────────────────────── */
+  @media (max-width: 1200px) {
+    .sections-row { flex-direction: column; }
+    .drum-pads { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- TOP BAR                                                      -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="top-bar">
+  <div class="logo">AXEL F <span>Synthesizer Workstation</span></div>
+  <div class="top-controls">
+    <div class="preset-display">SCN: Axel F — Full Arrangement</div>
+    <button class="top-btn">◀ PREV</button>
+    <button class="top-btn">SAVE</button>
+    <button class="top-btn">NEXT ▶</button>
+    <button class="top-btn" style="color:var(--accent-red)">PANIC</button>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:12px;">
+      <span class="text-xs">BPM</span>
+      <div class="preset-display" style="min-width:60px;font-size:18px;">120</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- TAB BAR                                                      -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="tab-bar">
+  <div class="tab active" data-tab="jupiter8" onclick="switchTab('jupiter8')">
+    Jupiter-8
+    <span class="midi-ch">CH 1</span>
+  </div>
+  <div class="tab" data-tab="moog15" onclick="switchTab('moog15')">
+    Moog 15
+    <span class="midi-ch">CH 2</span>
+  </div>
+  <div class="tab" data-tab="jx3p" onclick="switchTab('jx3p')">
+    JX-3P
+    <span class="midi-ch">CH 3</span>
+  </div>
+  <div class="tab" data-tab="dx7" onclick="switchTab('dx7')">
+    DX7
+    <span class="midi-ch">CH 4</span>
+  </div>
+  <div class="tab" data-tab="linndrum" onclick="switchTab('linndrum')">
+    LinnDrum
+    <span class="midi-ch">CH 10</span>
+  </div>
+  <div class="tab" data-tab="mixer" onclick="switchTab('mixer')">
+    Mixer
+    <span class="midi-ch">MASTER</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- PANEL CONTAINER                                               -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="panel-container">
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<!-- JUPITER-8 PANEL                                               -->
+<!-- ──────────────────────────────────────────────────────────── -->
+<div class="panel active jupiter8-panel" id="panel-jupiter8">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="color:var(--jupiter-accent)">ROLAND JUPITER-8</div>
+      <div class="panel-subtitle">Lead Synth — 8-Voice Polyphonic / Unison</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+      <div class="selector">
+        <span class="selector-label">Voice Mode</span>
+        <div class="selector-options">
+          <div class="selector-opt">POLY</div>
+          <div class="selector-opt selected">UNI</div>
+          <div class="selector-opt">SOLO-L</div>
+          <div class="selector-opt">SOLO-Lo</div>
+          <div class="selector-opt">SOLO-Hi</div>
+        </div>
+      </div>
+      <div class="voice-indicator" title="8 voices">
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+      </div>
+      <div class="preset-display" style="min-width:180px;">001: Axel Lead</div>
+    </div>
+  </div>
+
+  <!-- Row 1: Oscillators + Mixer -->
+  <div class="sections-row">
+    <!-- DCO-1 -->
+    <div class="section" style="flex:2">
+      <div class="section-title">DCO-1</div>
+      <div class="flex-row">
+        <div class="selector mb-8">
+          <span class="selector-label">Waveform</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">SAW</div>
+            <div class="selector-opt">PLS</div>
+            <div class="selector-opt">SUB</div>
+          </div>
+        </div>
+        <div class="selector mb-8">
+          <span class="selector-label">Range</span>
+          <div class="selector-options">
+            <div class="selector-opt">16'</div>
+            <div class="selector-opt selected">8'</div>
+            <div class="selector-opt">4'</div>
+            <div class="selector-opt">2'</div>
+          </div>
+        </div>
+      </div>
+      <div class="knob-group mt-8">
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Pulse W</span>
+          <span class="knob-value">50%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-low"></div>
+          <span class="knob-label">Cross Mod</span>
+          <span class="knob-value">0</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Sub Level</span>
+          <span class="knob-value">0</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Noise</span>
+          <span class="knob-value">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DCO-2 -->
+    <div class="section" style="flex:2">
+      <div class="section-title">DCO-2</div>
+      <div class="flex-row">
+        <div class="selector mb-8">
+          <span class="selector-label">Waveform</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">SAW</div>
+            <div class="selector-opt">PLS</div>
+            <div class="selector-opt">SUB</div>
+          </div>
+        </div>
+        <div class="selector mb-8">
+          <span class="selector-label">Range</span>
+          <div class="selector-options">
+            <div class="selector-opt">16'</div>
+            <div class="selector-opt selected">8'</div>
+            <div class="selector-opt">4'</div>
+            <div class="selector-opt">2'</div>
+          </div>
+        </div>
+      </div>
+      <div class="knob-group mt-8">
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Detune</span>
+          <span class="knob-value">+6ct</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Pulse W</span>
+          <span class="knob-value">50%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Sync</span>
+          <span class="knob-value">OFF</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mixer -->
+    <div class="section" style="flex:1">
+      <div class="section-title">Mixer</div>
+      <div class="slider-group">
+        <div class="v-slider">
+          <div class="v-slider-track"><div class="v-slider-thumb" style="top:15%"></div></div>
+          <span class="v-slider-label">DCO1</span>
+        </div>
+        <div class="v-slider">
+          <div class="v-slider-track"><div class="v-slider-thumb" style="top:15%"></div></div>
+          <span class="v-slider-label">DCO2</span>
+        </div>
+        <div class="v-slider">
+          <div class="v-slider-track"><div class="v-slider-thumb" style="top:90%"></div></div>
+          <span class="v-slider-label">SUB</span>
+        </div>
+        <div class="v-slider">
+          <div class="v-slider-track"><div class="v-slider-thumb" style="top:90%"></div></div>
+          <span class="v-slider-label">NOISE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Filter + VCA + Envelopes -->
+  <div class="sections-row">
+    <!-- VCF -->
+    <div class="section" style="flex:2">
+      <div class="section-title">VCF — IR3109</div>
+      <div class="flex-row" style="margin-bottom:8px">
+        <div class="selector">
+          <span class="selector-label">Type</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">LPF</div>
+            <div class="selector-opt">HPF</div>
+          </div>
+        </div>
+        <div class="selector">
+          <span class="selector-label">Key Track</span>
+          <div class="selector-options">
+            <div class="selector-opt">0%</div>
+            <div class="selector-opt">50%</div>
+            <div class="selector-opt selected">100%</div>
+          </div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob">
+          <div class="knob-dial pos-high"></div>
+          <span class="knob-label">Cutoff</span>
+          <span class="knob-value">65%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-low"></div>
+          <span class="knob-label">Reso</span>
+          <span class="knob-value">15%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Env Amt</span>
+          <span class="knob-value">+30%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">LFO Amt</span>
+          <span class="knob-value">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- VCA -->
+    <div class="section" style="flex:0.7">
+      <div class="section-title">VCA</div>
+      <div class="knob-group">
+        <div class="knob">
+          <div class="knob-dial pos-high"></div>
+          <span class="knob-label">Level</span>
+          <span class="knob-value">100</span>
+        </div>
+      </div>
+      <div class="switch-group mt-8">
+        <div class="switch">
+          <div class="switch-body on"></div>
+          <span class="switch-label">ENV / GATE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENV 1 -->
+    <div class="section" style="flex:1.5">
+      <div class="section-title">ENV 1 → Filter</div>
+      <div class="adsr-visual">
+        <svg viewBox="0 0 200 50">
+          <path d="M 0,48 L 10,4 L 60,18 L 140,18 L 180,48" stroke="var(--jupiter-accent)" />
+          <text x="5" y="48" font-size="6" fill="var(--text-secondary)">A</text>
+          <text x="32" y="48" font-size="6" fill="var(--text-secondary)">D</text>
+          <text x="95" y="48" font-size="6" fill="var(--text-secondary)">S</text>
+          <text x="158" y="48" font-size="6" fill="var(--text-secondary)">R</text>
+        </svg>
+      </div>
+      <div class="knob-group">
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Attack</span>
+          <span class="knob-value">5ms</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Decay</span>
+          <span class="knob-value">400ms</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-high"></div>
+          <span class="knob-label">Sustain</span>
+          <span class="knob-value">70%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-low"></div>
+          <span class="knob-label">Release</span>
+          <span class="knob-value">200ms</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENV 2 -->
+    <div class="section" style="flex:1.5">
+      <div class="section-title">ENV 2 → VCA</div>
+      <div class="adsr-visual">
+        <svg viewBox="0 0 200 50">
+          <path d="M 0,48 L 10,4 L 10,4 L 140,4 L 175,48" stroke="var(--jupiter-accent)" />
+          <text x="5" y="48" font-size="6" fill="var(--text-secondary)">A</text>
+          <text x="32" y="48" font-size="6" fill="var(--text-secondary)">D</text>
+          <text x="75" y="48" font-size="6" fill="var(--text-secondary)">S</text>
+          <text x="158" y="48" font-size="6" fill="var(--text-secondary)">R</text>
+        </svg>
+      </div>
+      <div class="knob-group">
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Attack</span>
+          <span class="knob-value">5ms</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Decay</span>
+          <span class="knob-value">0</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-max"></div>
+          <span class="knob-label">Sustain</span>
+          <span class="knob-value">100%</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Release</span>
+          <span class="knob-value">300ms</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: LFO + Mod + Arp -->
+  <div class="sections-row">
+    <!-- LFO -->
+    <div class="section" style="flex:2">
+      <div class="section-title">LFO</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">TRI</div>
+          <div class="selector-opt">SAW</div>
+          <div class="selector-opt">REV</div>
+          <div class="selector-opt">SQR</div>
+          <div class="selector-opt">S&amp;H</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob">
+          <div class="knob-dial pos-mid"></div>
+          <span class="knob-label">Rate</span>
+          <span class="knob-value">5 Hz</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Delay</span>
+          <span class="knob-value">0</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">→ Pitch</span>
+          <span class="knob-value">0</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">→ PW</span>
+          <span class="knob-value">0</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">→ VCF</span>
+          <span class="knob-value">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modulation -->
+    <div class="section" style="flex:1.2">
+      <div class="section-title">Modulation</div>
+      <div class="knob-group">
+        <div class="knob">
+          <div class="knob-dial pos-low"></div>
+          <span class="knob-label">P.Bend</span>
+          <span class="knob-value">±2st</span>
+        </div>
+        <div class="knob">
+          <div class="knob-dial pos-min"></div>
+          <span class="knob-label">Porta</span>
+          <span class="knob-value">OFF</span>
+        </div>
+      </div>
+      <div class="text-xs mt-8">Mod Wheel → LFO Vibrato</div>
+      <div class="text-xs">Aftertouch → VCF / LFO / Pitch</div>
+    </div>
+
+    <!-- Arpeggiator -->
+    <div class="section" style="flex:1.5">
+      <div class="section-title">Arpeggiator</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Mode</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">OFF</div>
+          <div class="selector-opt">UP</div>
+          <div class="selector-opt">DN</div>
+          <div class="selector-opt">U/D</div>
+          <div class="selector-opt">RND</div>
+        </div>
+      </div>
+      <div class="flex-row">
+        <div class="selector">
+          <span class="selector-label">Range</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">1</div>
+            <div class="selector-opt">2</div>
+            <div class="selector-opt">3</div>
+          </div>
+        </div>
+        <div class="selector">
+          <span class="selector-label">Clock</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">INT</div>
+            <div class="selector-opt">MIDI</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<!-- MOOG 15 PANEL                                                 -->
+<!-- ──────────────────────────────────────────────────────────── -->
+<div class="panel moog15-panel" id="panel-moog15">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="color:var(--moog-accent)">MOOG MODULAR 15</div>
+      <div class="panel-subtitle">Bass — Monophonic / 3 VCO</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+      <div class="voice-indicator"><div class="voice-dot lit" style="width:12px;height:12px;"></div></div>
+      <span class="text-xs">MONO</span>
+      <div class="preset-display" style="min-width:180px;">001: Deep Bass</div>
+    </div>
+  </div>
+
+  <!-- Row 1: Three VCOs -->
+  <div class="sections-row">
+    <div class="section">
+      <div class="section-title">VCO 1 (901A Master)</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt">SIN</div>
+          <div class="selector-opt">TRI</div>
+          <div class="selector-opt selected">SAW</div>
+          <div class="selector-opt">SQR</div>
+          <div class="selector-opt">PLS</div>
+        </div>
+      </div>
+      <div class="selector mb-8">
+        <span class="selector-label">Range</span>
+        <div class="selector-options">
+          <div class="selector-opt">32'</div>
+          <div class="selector-opt">16'</div>
+          <div class="selector-opt selected">8'</div>
+          <div class="selector-opt">4'</div>
+          <div class="selector-opt">2'</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Fine</span><span class="knob-value">0ct</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">PW</span><span class="knob-value">50%</span></div>
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Mix Lvl</span><span class="knob-value">100</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">VCO 2 (901B)</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt">SIN</div>
+          <div class="selector-opt">TRI</div>
+          <div class="selector-opt selected">SAW</div>
+          <div class="selector-opt">SQR</div>
+          <div class="selector-opt">PLS</div>
+        </div>
+      </div>
+      <div class="selector mb-8">
+        <span class="selector-label">Range</span>
+        <div class="selector-options">
+          <div class="selector-opt">32'</div>
+          <div class="selector-opt">16'</div>
+          <div class="selector-opt selected">8'</div>
+          <div class="selector-opt">4'</div>
+          <div class="selector-opt">2'</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Fine</span><span class="knob-value">+3ct</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">PW</span><span class="knob-value">50%</span></div>
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Mix Lvl</span><span class="knob-value">100</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">VCO 3 (901B)</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt">SIN</div>
+          <div class="selector-opt">TRI</div>
+          <div class="selector-opt">SAW</div>
+          <div class="selector-opt selected">SQR</div>
+          <div class="selector-opt">PLS</div>
+        </div>
+      </div>
+      <div class="selector mb-8">
+        <span class="selector-label">Range</span>
+        <div class="selector-options">
+          <div class="selector-opt">32'</div>
+          <div class="selector-opt selected">16'</div>
+          <div class="selector-opt">8'</div>
+          <div class="selector-opt">4'</div>
+          <div class="selector-opt">2'</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Fine</span><span class="knob-value">0ct</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">PW</span><span class="knob-value">50%</span></div>
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Mix Lvl</span><span class="knob-value">80</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Filter + VCA + Envelopes -->
+  <div class="sections-row">
+    <div class="section" style="flex:2">
+      <div class="section-title">904A Ladder Filter</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Key Track</span>
+        <div class="selector-options">
+          <div class="selector-opt">0%</div>
+          <div class="selector-opt">33%</div>
+          <div class="selector-opt selected">67%</div>
+          <div class="selector-opt">100%</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Cutoff</span><span class="knob-value">2.5kHz</span></div>
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">Reso</span><span class="knob-value">25</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Drive</span><span class="knob-value">40</span></div>
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Env Amt</span><span class="knob-value">80</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">LFO Amt</span><span class="knob-value">0</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:0.6">
+      <div class="section-title">902 VCA</div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Level</span><span class="knob-value">110</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1.5">
+      <div class="section-title">ENV 1 → Filter (911)</div>
+      <div class="adsr-visual">
+        <svg viewBox="0 0 200 50">
+          <path d="M 0,48 L 15,4 L 70,20 L 130,20 L 170,48" stroke="var(--moog-accent)" />
+        </svg>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">Attack</span><span class="knob-value">10ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Decay</span><span class="knob-value">500ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Sustain</span><span class="knob-value">50%</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Release</span><span class="knob-value">300ms</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1.5">
+      <div class="section-title">ENV 2 → VCA (911)</div>
+      <div class="adsr-visual">
+        <svg viewBox="0 0 200 50">
+          <path d="M 0,48 L 8,4 L 50,15 L 130,15 L 165,48" stroke="var(--moog-accent)" />
+        </svg>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">Attack</span><span class="knob-value">2ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Decay</span><span class="knob-value">400ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Sustain</span><span class="knob-value">60%</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Release</span><span class="knob-value">250ms</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: LFO + S&H + Performance + Patchbay -->
+  <div class="sections-row">
+    <div class="section" style="flex:1.5">
+      <div class="section-title">921 LFO</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">TRI</div>
+          <div class="selector-opt">SAW</div>
+          <div class="selector-opt">SQR</div>
+          <div class="selector-opt">SIN</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Rate</span><span class="knob-value">3 Hz</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">→ Pitch</span><span class="knob-value">0</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">→ VCF</span><span class="knob-value">0</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1">
+      <div class="section-title">S&amp;H / Noise</div>
+      <div class="switch-group mb-8">
+        <div class="switch"><div class="switch-body"></div><span class="switch-label">White</span></div>
+        <div class="switch"><div class="switch-body"></div><span class="switch-label">Pink</span></div>
+        <div class="switch"><div class="switch-body"></div><span class="switch-label">S&amp;H→VCF</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1">
+      <div class="section-title">Performance</div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">Glide</span><span class="knob-value">0</span></div>
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">P.Bend</span><span class="knob-value">±2st</span></div>
+      </div>
+      <div class="text-xs mt-8">Velocity → VCA + Filter</div>
+    </div>
+
+    <div class="section" style="flex:2">
+      <div class="section-title">Patchbay</div>
+      <div class="patchbay">
+        <div class="patch-point"><div class="patch-jack connected"></div><span class="patch-label">Env1 → VCF</span></div>
+        <div class="patch-point"><div class="patch-jack connected"></div><span class="patch-label">Env2 → VCA</span></div>
+        <div class="patch-point"><div class="patch-jack connected"></div><span class="patch-label">LFO → Pitch</span></div>
+        <div class="patch-point"><div class="patch-jack"></div><span class="patch-label">LFO → VCF</span></div>
+        <div class="patch-point"><div class="patch-jack"></div><span class="patch-label">S&amp;H → VCF</span></div>
+        <div class="patch-point"><div class="patch-jack"></div><span class="patch-label">Noise → FM</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<!-- JX-3P PANEL                                                   -->
+<!-- ──────────────────────────────────────────────────────────── -->
+<div class="panel jx3p-panel" id="panel-jx3p">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="color:var(--jx3p-accent)">ROLAND JX-3P</div>
+      <div class="panel-subtitle">Chord Stabs — 6-Voice Polyphonic + Chorus</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+      <div class="selector">
+        <span class="selector-label">Voice Mode</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">POLY</div>
+          <div class="selector-opt">UNI</div>
+          <div class="selector-opt">DUAL</div>
+        </div>
+      </div>
+      <div class="voice-indicator" title="6 voices">
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+        <div class="voice-dot lit"></div><div class="voice-dot"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+      </div>
+      <div class="preset-display" style="min-width:180px;">015: Stab Brass</div>
+    </div>
+  </div>
+
+  <!-- Row 1: DCOs + Mixer -->
+  <div class="sections-row">
+    <div class="section" style="flex:2">
+      <div class="section-title">DCO-1</div>
+      <div class="flex-row">
+        <div class="selector mb-8">
+          <span class="selector-label">Waveform</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">SAW</div>
+            <div class="selector-opt">PLS</div>
+            <div class="selector-opt">SQR</div>
+          </div>
+        </div>
+        <div class="selector mb-8">
+          <span class="selector-label">Range</span>
+          <div class="selector-options">
+            <div class="selector-opt">4'</div>
+            <div class="selector-opt selected">8'</div>
+            <div class="selector-opt">16'</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section" style="flex:2">
+      <div class="section-title">DCO-2</div>
+      <div class="flex-row">
+        <div class="selector mb-8">
+          <span class="selector-label">Waveform</span>
+          <div class="selector-options">
+            <div class="selector-opt selected">SAW</div>
+            <div class="selector-opt">PLS</div>
+            <div class="selector-opt">SQR</div>
+            <div class="selector-opt">NSE</div>
+          </div>
+        </div>
+        <div class="selector mb-8">
+          <span class="selector-label">Range</span>
+          <div class="selector-options">
+            <div class="selector-opt">2'</div>
+            <div class="selector-opt">4'</div>
+            <div class="selector-opt selected">8'</div>
+            <div class="selector-opt">16'</div>
+          </div>
+        </div>
+      </div>
+      <div class="knob-group mt-8">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Tune</span><span class="knob-value">+4ct</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">X-Mod</span><span class="knob-value">0</span></div>
+      </div>
+      <div class="switch-group mt-8">
+        <div class="switch"><div class="switch-body"></div><span class="switch-label">Sync</span></div>
+      </div>
+    </div>
+    <div class="section" style="flex:0.8">
+      <div class="section-title">Mixer</div>
+      <div class="slider-group">
+        <div class="v-slider">
+          <div class="v-slider-track"><div class="v-slider-thumb" style="top:15%"></div></div>
+          <span class="v-slider-label">DCO1</span>
+        </div>
+        <div class="v-slider">
+          <div class="v-slider-track"><div class="v-slider-thumb" style="top:20%"></div></div>
+          <span class="v-slider-label">DCO2</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Filter + Envs -->
+  <div class="sections-row">
+    <div class="section" style="flex:2">
+      <div class="section-title">VCF — IR3109</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Key Track</span>
+        <div class="selector-options">
+          <div class="selector-opt">OFF</div>
+          <div class="selector-opt selected">HALF</div>
+          <div class="selector-opt">FULL</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Cutoff</span><span class="knob-value">6kHz</span></div>
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">Reso</span><span class="knob-value">20</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Env Amt</span><span class="knob-value">55</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">LFO Amt</span><span class="knob-value">0</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1.5">
+      <div class="section-title">ENV 1 → VCF</div>
+      <div class="adsr-visual">
+        <svg viewBox="0 0 200 50">
+          <path d="M 0,48 L 12,4 L 55,22 L 120,22 L 160,48" stroke="var(--jx3p-accent)" />
+        </svg>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">A</span><span class="knob-value">3ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">D</span><span class="knob-value">350ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">S</span><span class="knob-value">45%</span></div>
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">R</span><span class="knob-value">150ms</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1.5">
+      <div class="section-title">ENV 2 → VCA</div>
+      <div class="adsr-visual">
+        <svg viewBox="0 0 200 50">
+          <path d="M 0,48 L 8,4 L 45,18 L 125,18 L 165,48" stroke="var(--jx3p-accent)" />
+        </svg>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">A</span><span class="knob-value">1ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">D</span><span class="knob-value">300ms</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">S</span><span class="knob-value">55%</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">R</span><span class="knob-value">200ms</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: LFO + Chorus -->
+  <div class="sections-row">
+    <div class="section" style="flex:2">
+      <div class="section-title">LFO</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">TRI</div>
+          <div class="selector-opt">SAW</div>
+          <div class="selector-opt">SQR</div>
+          <div class="selector-opt">RND</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Rate</span><span class="knob-value">4 Hz</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">Delay</span><span class="knob-value">0</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">→ Pitch</span><span class="knob-value">0</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">→ VCF</span><span class="knob-value">0</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">→ VCA</span><span class="knob-value">0</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:2; background: linear-gradient(135deg, var(--bg-section), #1a3040);">
+      <div class="section-title" style="color:var(--jx3p-accent)">★ Chorus (Built-In)</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Mode</span>
+        <div class="selector-options">
+          <div class="selector-opt">OFF</div>
+          <div class="selector-opt selected">I</div>
+          <div class="selector-opt">II</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Rate</span><span class="knob-value">1.2 Hz</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Depth</span><span class="knob-value">60</span></div>
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Spread</span><span class="knob-value">80</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<!-- DX7 PANEL                                                     -->
+<!-- ──────────────────────────────────────────────────────────── -->
+<div class="panel dx7-panel" id="panel-dx7">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="color:var(--dx7-accent)">YAMAHA DX7</div>
+      <div class="panel-subtitle">Marimba / Bell — 6-Op FM, 16-Voice Polyphonic</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+      <div class="voice-indicator" title="16 voices">
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+        <div class="voice-dot lit"></div><div class="voice-dot lit"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+        <div class="voice-dot"></div><div class="voice-dot"></div>
+      </div>
+      <div class="preset-display" style="min-width:220px;background:#0a1a0a;border-color:var(--dx7-accent);color:var(--dx7-accent);">
+        MARIMBA 1 &nbsp; [A01]
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 1: Algorithm + Operators 1-3 -->
+  <div class="sections-row">
+    <div class="section" style="flex:1.2">
+      <div class="section-title">Algorithm</div>
+      <div class="algo-display">
+        <div class="algo-number">1</div>
+        <div class="algo-diagram">  [6]→[5]→[4]→[3]→[2]→[1]
+              ↑fb              OUT</div>
+      </div>
+      <div class="knob-group mt-8" style="justify-content:center">
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">Feedback</span><span class="knob-value">3</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:3">
+      <div class="section-title">Operators</div>
+      <!-- OP 1 -->
+      <div class="op-strip">
+        <div class="op-number">1</div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-high" style="width:34px;height:34px"></div><span class="knob-label">Ratio</span><span class="knob-value">1.00</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-high" style="width:34px;height:34px"></div><span class="knob-label">Level</span><span class="knob-value">85</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Vel</span><span class="knob-value">4</span></div>
+        <div class="op-eg-mini">
+          <svg viewBox="0 0 80 30"><path d="M 0,28 L 8,2 L 30,14 L 55,20 L 75,28" stroke="var(--dx7-accent)" fill="none" stroke-width="1.5" /></svg>
+        </div>
+        <div class="flex-col gap-6" style="min-width:90px">
+          <span class="text-xs">R: 90 80 70 40</span>
+          <span class="text-xs">L: 99 85 70 0</span>
+        </div>
+        <div class="led on-green" title="Carrier"></div>
+        <span class="text-xs">C</span>
+      </div>
+      <!-- OP 2 -->
+      <div class="op-strip">
+        <div class="op-number">2</div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-high" style="width:34px;height:34px"></div><span class="knob-label">Ratio</span><span class="knob-value">14.00</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Level</span><span class="knob-value">65</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-low" style="width:34px;height:34px"></div><span class="knob-label">Vel</span><span class="knob-value">2</span></div>
+        <div class="op-eg-mini">
+          <svg viewBox="0 0 80 30"><path d="M 0,28 L 5,2 L 25,22 L 50,25 L 70,28" stroke="var(--dx7-accent)" fill="none" stroke-width="1.5" /></svg>
+        </div>
+        <div class="flex-col gap-6" style="min-width:90px">
+          <span class="text-xs">R: 95 70 50 50</span>
+          <span class="text-xs">L: 99 60 30 0</span>
+        </div>
+        <div class="led on-amber" title="Modulator"></div>
+        <span class="text-xs">M</span>
+      </div>
+      <!-- OP 3 -->
+      <div class="op-strip">
+        <div class="op-number">3</div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Ratio</span><span class="knob-value">1.00</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-high" style="width:34px;height:34px"></div><span class="knob-label">Level</span><span class="knob-value">80</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Vel</span><span class="knob-value">5</span></div>
+        <div class="op-eg-mini">
+          <svg viewBox="0 0 80 30"><path d="M 0,28 L 10,2 L 35,16 L 55,22 L 75,28" stroke="var(--dx7-accent)" fill="none" stroke-width="1.5" /></svg>
+        </div>
+        <div class="flex-col gap-6" style="min-width:90px">
+          <span class="text-xs">R: 85 75 65 45</span>
+          <span class="text-xs">L: 99 80 65 0</span>
+        </div>
+        <div class="led on-amber" title="Modulator"></div>
+        <span class="text-xs">M</span>
+      </div>
+      <!-- OP 4 -->
+      <div class="op-strip">
+        <div class="op-number">4</div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Ratio</span><span class="knob-value">1.00</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Level</span><span class="knob-value">70</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-low" style="width:34px;height:34px"></div><span class="knob-label">Vel</span><span class="knob-value">3</span></div>
+        <div class="op-eg-mini">
+          <svg viewBox="0 0 80 30"><path d="M 0,28 L 12,4 L 40,14 L 58,20 L 75,28" stroke="var(--dx7-accent)" fill="none" stroke-width="1.5" /></svg>
+        </div>
+        <div class="flex-col gap-6" style="min-width:90px">
+          <span class="text-xs">R: 80 70 55 40</span>
+          <span class="text-xs">L: 99 75 55 0</span>
+        </div>
+        <div class="led on-amber" title="Modulator"></div>
+        <span class="text-xs">M</span>
+      </div>
+      <!-- OP 5 -->
+      <div class="op-strip">
+        <div class="op-number">5</div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-high" style="width:34px;height:34px"></div><span class="knob-label">Ratio</span><span class="knob-value">3.00</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Level</span><span class="knob-value">55</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-mid" style="width:34px;height:34px"></div><span class="knob-label">Vel</span><span class="knob-value">4</span></div>
+        <div class="op-eg-mini">
+          <svg viewBox="0 0 80 30"><path d="M 0,28 L 6,4 L 20,20 L 45,24 L 70,28" stroke="var(--dx7-accent)" fill="none" stroke-width="1.5" /></svg>
+        </div>
+        <div class="flex-col gap-6" style="min-width:90px">
+          <span class="text-xs">R: 92 65 45 50</span>
+          <span class="text-xs">L: 99 55 25 0</span>
+        </div>
+        <div class="led on-amber" title="Modulator"></div>
+        <span class="text-xs">M</span>
+      </div>
+      <!-- OP 6 -->
+      <div class="op-strip">
+        <div class="op-number">6</div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-high" style="width:34px;height:34px"></div><span class="knob-label">Ratio</span><span class="knob-value">7.00</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-low" style="width:34px;height:34px"></div><span class="knob-label">Level</span><span class="knob-value">40</span></div>
+        <div class="knob" style="width:44px"><div class="knob-dial pos-low" style="width:34px;height:34px"></div><span class="knob-label">Vel</span><span class="knob-value">2</span></div>
+        <div class="op-eg-mini">
+          <svg viewBox="0 0 80 30"><path d="M 0,28 L 4,4 L 15,24 L 40,26 L 65,28" stroke="var(--dx7-accent)" fill="none" stroke-width="1.5" /></svg>
+        </div>
+        <div class="flex-col gap-6" style="min-width:90px">
+          <span class="text-xs">R: 98 60 40 55</span>
+          <span class="text-xs">L: 99 45 15 0</span>
+        </div>
+        <div class="led on-amber" title="Modulator"></div>
+        <span class="text-xs">M</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: LFO + PEG + Performance -->
+  <div class="sections-row">
+    <div class="section" style="flex:2">
+      <div class="section-title">LFO</div>
+      <div class="selector mb-8">
+        <span class="selector-label">Waveform</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">TRI</div>
+          <div class="selector-opt">SD</div>
+          <div class="selector-opt">SU</div>
+          <div class="selector-opt">SQR</div>
+          <div class="selector-opt">SIN</div>
+          <div class="selector-opt">S&amp;H</div>
+        </div>
+      </div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Speed</span><span class="knob-value">35</span></div>
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">Delay</span><span class="knob-value">20</span></div>
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">PMD</span><span class="knob-value">10</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">AMD</span><span class="knob-value">0</span></div>
+      </div>
+      <div class="switch-group mt-8">
+        <div class="switch"><div class="switch-body on"></div><span class="switch-label">Sync</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1.5">
+      <div class="section-title">Pitch EG</div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">R1</span><span class="knob-value">50</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">R2</span><span class="knob-value">50</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">R3</span><span class="knob-value">50</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">R4</span><span class="knob-value">50</span></div>
+      </div>
+      <div class="knob-group mt-8">
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">L1</span><span class="knob-value">50</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">L2</span><span class="knob-value">50</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">L3</span><span class="knob-value">50</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">L4</span><span class="knob-value">50</span></div>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1">
+      <div class="section-title">Performance</div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-low"></div><span class="knob-label">P.Bend</span><span class="knob-value">±2st</span></div>
+        <div class="knob"><div class="knob-dial pos-min"></div><span class="knob-label">Porta</span><span class="knob-value">0</span></div>
+      </div>
+      <div class="text-xs mt-8">Mod → PMD / AMD</div>
+      <div class="text-xs">AT → Pitch / Bright / Vol</div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<!-- LINNDRUM PANEL                                                -->
+<!-- ──────────────────────────────────────────────────────────── -->
+<div class="panel linndrum-panel" id="panel-linndrum">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="color:var(--linn-accent)">LINNDRUM</div>
+      <div class="panel-subtitle">Drums — 15 Voices, Sample-Based + Step Sequencer</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="text-xs">SWING</span>
+        <div class="knob" style="width:40px"><div class="knob-dial pos-mid" style="width:32px;height:32px"></div></div>
+        <span class="text-xs">54%</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="text-xs">TUNE</span>
+        <div class="knob" style="width:40px"><div class="knob-dial pos-mid" style="width:32px;height:32px"></div></div>
+        <span class="text-xs">0ct</span>
+      </div>
+      <div class="preset-display" style="min-width:160px;">PTN 01 / 16 steps</div>
+      <button class="top-btn" style="background:var(--accent-green);color:#111;">▶ PLAY</button>
+      <button class="top-btn">■ STOP</button>
+    </div>
+  </div>
+
+  <!-- Drum Pads -->
+  <div class="sections-row">
+    <div class="section" style="flex:3">
+      <div class="section-title">Voice Pads</div>
+      <div class="drum-pads">
+        <div class="drum-pad selected"><div class="drum-pad-name">Kick</div><div class="drum-pad-note">C1</div><div class="led on-red"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Snare</div><div class="drum-pad-note">D1</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">HH Cls</div><div class="drum-pad-note">F#1</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">HH Open</div><div class="drum-pad-note">A#1</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Ride</div><div class="drum-pad-note">D#2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Crash</div><div class="drum-pad-note">C#2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Tom Hi</div><div class="drum-pad-note">D2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Tom Mid</div><div class="drum-pad-note">B1</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Tom Lo</div><div class="drum-pad-note">A1</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Conga Hi</div><div class="drum-pad-note">E2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Conga Lo</div><div class="drum-pad-note">D2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Clap</div><div class="drum-pad-note">D#1</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Cowbell</div><div class="drum-pad-note">G#2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Tamb</div><div class="drum-pad-note">F#2</div><div class="led"></div></div>
+        <div class="drum-pad"><div class="drum-pad-name">Cabasa</div><div class="drum-pad-note">G2</div><div class="led"></div></div>
+      </div>
+    </div>
+
+    <!-- Per-Voice Controls (for selected pad) -->
+    <div class="section" style="flex:1.2">
+      <div class="section-title">Selected: Kick</div>
+      <div class="knob-group">
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Level</span><span class="knob-value">110</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Pan</span><span class="knob-value">C</span></div>
+        <div class="knob"><div class="knob-dial pos-mid"></div><span class="knob-label">Tune</span><span class="knob-value">0st</span></div>
+        <div class="knob"><div class="knob-dial pos-high"></div><span class="knob-label">Decay</span><span class="knob-value">100</span></div>
+      </div>
+      <div class="selector mt-8">
+        <span class="selector-label">Output Bus</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">MIX</div>
+          <div class="selector-opt">A</div>
+          <div class="selector-opt">B</div>
+        </div>
+      </div>
+      <div class="selector mt-8">
+        <span class="selector-label">Mute Group</span>
+        <div class="selector-options">
+          <div class="selector-opt selected">OFF</div>
+          <div class="selector-opt">1</div>
+          <div class="selector-opt">2</div>
+          <div class="selector-opt">3</div>
+          <div class="selector-opt">4</div>
+        </div>
+      </div>
+      <div class="switch-group mt-8">
+        <div class="switch"><div class="switch-body"></div><span class="switch-label">Solo</span></div>
+      </div>
+      <div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border-subtle)">
+        <span class="text-xs">SAMPLE: kick_factory.wav</span><br>
+        <button class="top-btn" style="margin-top:4px;font-size:10px;">Load Sample...</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step Sequencer -->
+  <div class="sections-row">
+    <div class="section w-full">
+      <div class="section-title">Step Programmer — Pattern 01</div>
+      <div class="sequencer">
+        <!-- Step numbers -->
+        <div class="seq-row">
+          <span class="seq-label"></span>
+          <div class="seq-step-num">1</div><div class="seq-step-num">2</div><div class="seq-step-num">3</div><div class="seq-step-num">4</div>
+          <div class="seq-step-num">5</div><div class="seq-step-num">6</div><div class="seq-step-num">7</div><div class="seq-step-num">8</div>
+          <div class="seq-step-num">9</div><div class="seq-step-num">10</div><div class="seq-step-num">11</div><div class="seq-step-num">12</div>
+          <div class="seq-step-num">13</div><div class="seq-step-num">14</div><div class="seq-step-num">15</div><div class="seq-step-num">16</div>
+        </div>
+        <!-- Kick -->
+        <div class="seq-row">
+          <span class="seq-label">Kick</span>
+          <div class="seq-step active beat seq-playhead"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+        </div>
+        <!-- Snare -->
+        <div class="seq-row">
+          <span class="seq-label">Snare</span>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+        </div>
+        <!-- HH Closed -->
+        <div class="seq-row">
+          <span class="seq-label">HH Cls</span>
+          <div class="seq-step active beat"></div><div class="seq-step active"></div><div class="seq-step active"></div><div class="seq-step active"></div>
+          <div class="seq-step active beat"></div><div class="seq-step active"></div><div class="seq-step active"></div><div class="seq-step active"></div>
+          <div class="seq-step active beat"></div><div class="seq-step active"></div><div class="seq-step active"></div><div class="seq-step active"></div>
+          <div class="seq-step active beat"></div><div class="seq-step active"></div><div class="seq-step active"></div><div class="seq-step active"></div>
+        </div>
+        <!-- HH Open -->
+        <div class="seq-row">
+          <span class="seq-label">HH Open</span>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step active"></div><div class="seq-step"></div>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step active"></div><div class="seq-step"></div>
+        </div>
+        <!-- Clap -->
+        <div class="seq-row">
+          <span class="seq-label">Clap</span>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+          <div class="seq-step active beat"></div><div class="seq-step"></div><div class="seq-step"></div><div class="seq-step"></div>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+        <button class="top-btn">COPY</button>
+        <button class="top-btn">PASTE</button>
+        <button class="top-btn" style="color:var(--accent-red)">CLEAR</button>
+        <span style="flex:1"></span>
+        <span class="text-xs">Steps:</span>
+        <div class="selector-options">
+          <div class="selector-opt selected" style="font-size:10px">16</div>
+          <div class="selector-opt" style="font-size:10px">32</div>
+        </div>
+        <span style="margin-left:12px" class="text-xs">MIDI Clock:</span>
+        <div class="selector-options">
+          <div class="selector-opt" style="font-size:10px">INT</div>
+          <div class="selector-opt selected" style="font-size:10px">HOST</div>
+          <div class="selector-opt" style="font-size:10px">EXT</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<!-- MASTER MIXER PANEL                                            -->
+<!-- ──────────────────────────────────────────────────────────── -->
+<div class="panel mixer-panel" id="panel-mixer">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="color:var(--mixer-accent)">MASTER MIXER</div>
+      <div class="panel-subtitle">5-Channel Mix + Aux Sends + Output Routing</div>
+    </div>
+  </div>
+
+  <div class="sections-row" style="align-items:stretch;">
+    <!-- Jupiter-8 Strip -->
+    <div class="mixer-strip">
+      <div class="mixer-strip-label" style="color:var(--jupiter-accent)">JUP-8</div>
+      <div style="display:flex;gap:4px;">
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:72%"></div></div>
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:68%"></div></div>
+      </div>
+      <div class="pan-knob" title="Pan: Center"></div>
+      <span class="text-xs">PAN</span>
+      <div class="mixer-fader-track"><div class="mixer-fader-thumb" style="top:24%"></div></div>
+      <span class="text-xs" style="font-family:monospace">-2.4 dB</span>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-mid" style="width:28px;height:28px"></div><span class="knob-label">Aux 1</span></div>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-min" style="width:28px;height:28px"></div><span class="knob-label">Aux 2</span></div>
+      <div class="mixer-btns">
+        <div class="mixer-btn mute">M</div>
+        <div class="mixer-btn solo">S</div>
+      </div>
+      <span class="text-xs">CH 1</span>
+    </div>
+
+    <!-- Moog 15 Strip -->
+    <div class="mixer-strip">
+      <div class="mixer-strip-label" style="color:var(--moog-accent)">MOOG</div>
+      <div style="display:flex;gap:4px;">
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:55%"></div></div>
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:55%"></div></div>
+      </div>
+      <div class="pan-knob"></div>
+      <span class="text-xs">PAN</span>
+      <div class="mixer-fader-track"><div class="mixer-fader-thumb" style="top:30%"></div></div>
+      <span class="text-xs" style="font-family:monospace">-3.6 dB</span>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-min" style="width:28px;height:28px"></div><span class="knob-label">Aux 1</span></div>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-min" style="width:28px;height:28px"></div><span class="knob-label">Aux 2</span></div>
+      <div class="mixer-btns">
+        <div class="mixer-btn mute">M</div>
+        <div class="mixer-btn solo">S</div>
+      </div>
+      <span class="text-xs">CH 2</span>
+    </div>
+
+    <!-- JX-3P Strip -->
+    <div class="mixer-strip">
+      <div class="mixer-strip-label" style="color:var(--jx3p-accent)">JX-3P</div>
+      <div style="display:flex;gap:4px;">
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:45%"></div></div>
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:50%"></div></div>
+      </div>
+      <div class="pan-knob" style="position:relative"><div style="position:absolute;width:1.5px;height:9px;background:white;top:3px;left:40%;transform:rotate(-15deg);transform-origin:bottom center;border-radius:1px;"></div></div>
+      <span class="text-xs">PAN: L10</span>
+      <div class="mixer-fader-track"><div class="mixer-fader-thumb" style="top:36%"></div></div>
+      <span class="text-xs" style="font-family:monospace">-5.0 dB</span>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-low" style="width:28px;height:28px"></div><span class="knob-label">Aux 1</span></div>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-min" style="width:28px;height:28px"></div><span class="knob-label">Aux 2</span></div>
+      <div class="mixer-btns">
+        <div class="mixer-btn mute">M</div>
+        <div class="mixer-btn solo">S</div>
+      </div>
+      <span class="text-xs">CH 3</span>
+    </div>
+
+    <!-- DX7 Strip -->
+    <div class="mixer-strip">
+      <div class="mixer-strip-label" style="color:var(--dx7-accent)">DX7</div>
+      <div style="display:flex;gap:4px;">
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:38%"></div></div>
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:42%"></div></div>
+      </div>
+      <div class="pan-knob"></div>
+      <span class="text-xs">PAN: R10</span>
+      <div class="mixer-fader-track"><div class="mixer-fader-thumb" style="top:40%"></div></div>
+      <span class="text-xs" style="font-family:monospace">-6.0 dB</span>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-min" style="width:28px;height:28px"></div><span class="knob-label">Aux 1</span></div>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-low" style="width:28px;height:28px"></div><span class="knob-label">Aux 2</span></div>
+      <div class="mixer-btns">
+        <div class="mixer-btn mute">M</div>
+        <div class="mixer-btn solo">S</div>
+      </div>
+      <span class="text-xs">CH 4</span>
+    </div>
+
+    <!-- LinnDrum Strip -->
+    <div class="mixer-strip">
+      <div class="mixer-strip-label" style="color:var(--linn-accent)">LINN</div>
+      <div style="display:flex;gap:4px;">
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:60%"></div></div>
+        <div class="mixer-meter"><div class="mixer-meter-fill" style="height:58%"></div></div>
+      </div>
+      <div class="pan-knob"></div>
+      <span class="text-xs">PAN</span>
+      <div class="mixer-fader-track"><div class="mixer-fader-thumb" style="top:28%"></div></div>
+      <span class="text-xs" style="font-family:monospace">-3.0 dB</span>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-low" style="width:28px;height:28px"></div><span class="knob-label">Aux 1</span></div>
+      <div class="knob" style="width:40px"><div class="knob-dial pos-min" style="width:28px;height:28px"></div><span class="knob-label">Aux 2</span></div>
+      <div class="mixer-btns">
+        <div class="mixer-btn mute">M</div>
+        <div class="mixer-btn solo">S</div>
+      </div>
+      <span class="text-xs">CH 10</span>
+    </div>
+
+    <!-- Separator -->
+    <div style="width:2px;background:var(--border-subtle);align-self:stretch;border-radius:1px;"></div>
+
+    <!-- Master Strip -->
+    <div class="mixer-strip" style="background:linear-gradient(180deg, var(--bg-section), #1a1a38);border-color:var(--mixer-accent);">
+      <div class="mixer-strip-label" style="color:var(--mixer-accent)">MASTER</div>
+      <div style="display:flex;gap:4px;">
+        <div class="mixer-meter" style="height:120px;width:16px;"><div class="mixer-meter-fill" style="height:65%"></div></div>
+        <div class="mixer-meter" style="height:120px;width:16px;"><div class="mixer-meter-fill" style="height:62%"></div></div>
+      </div>
+      <div class="mixer-fader-track" style="height:140px;"><div class="mixer-fader-thumb" style="top:18%"></div></div>
+      <span class="text-xs" style="font-family:monospace;color:var(--mixer-accent)">0.0 dB</span>
+      <div class="led on-green"></div>
+      <span class="text-xs">STEREO OUT</span>
+    </div>
+  </div>
+
+  <!-- Modulation Matrix -->
+  <div class="sections-row" style="margin-top:12px;">
+    <div class="section w-full">
+      <div class="section-title">Modulation Matrix (16 Slots)</div>
+      <div style="display:grid; grid-template-columns:40px 1fr 1fr 80px 60px; gap:4px 12px; font-size:10px; color:var(--text-label);">
+        <div style="font-weight:700">#</div><div style="font-weight:700">SOURCE</div><div style="font-weight:700">TARGET</div><div style="font-weight:700">DEPTH</div><div style="font-weight:700">POLAR</div>
+        <div>1</div><div>Mod Wheel (CC1)</div><div>jup8_lfo_pitch_amt</div><div style="color:var(--text-primary)">+64</div><div>UNI</div>
+        <div>2</div><div>Velocity</div><div>moog_vcf_cutoff</div><div style="color:var(--text-primary)">+40</div><div>UNI</div>
+        <div>3</div><div>Aftertouch</div><div>jx3p_vcf_cutoff</div><div style="color:var(--text-primary)">+32</div><div>UNI</div>
+        <div>4</div><div>LFO (Global)</div><div>dx7_op1_level</div><div style="color:var(--text-primary)">±10</div><div>BI</div>
+        <div style="color:var(--text-secondary)">5–16</div><div style="color:var(--text-secondary)">—</div><div style="color:var(--text-secondary)">—</div><div style="color:var(--text-secondary)">—</div><div style="color:var(--text-secondary)">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MIDI Routing -->
+  <div class="sections-row">
+    <div class="section" style="flex:1">
+      <div class="section-title">MIDI Routing</div>
+      <div style="display:grid; grid-template-columns:100px 60px 80px; gap:4px 12px; font-size:11px;">
+        <div style="font-weight:700;color:var(--text-label)">Module</div>
+        <div style="font-weight:700;color:var(--text-label)">Channel</div>
+        <div style="font-weight:700;color:var(--text-label)">Status</div>
+        <div style="color:var(--jupiter-accent)">Jupiter-8</div><div>1</div><div><span class="led on-green"></span></div>
+        <div style="color:var(--moog-accent)">Moog 15</div><div>2</div><div><span class="led on-green"></span></div>
+        <div style="color:var(--jx3p-accent)">JX-3P</div><div>3</div><div><span class="led on-green"></span></div>
+        <div style="color:var(--dx7-accent)">DX7</div><div>4</div><div><span class="led on-green"></span></div>
+        <div style="color:var(--linn-accent)">LinnDrum</div><div>10</div><div><span class="led on-green"></span></div>
+      </div>
+    </div>
+    <div class="section" style="flex:1">
+      <div class="section-title">Output Buses</div>
+      <div style="font-size:11px;line-height:2;">
+        <div><span class="led on-green"></span> <strong>Main</strong> — Stereo sum (Bus 0)</div>
+        <div><span class="led on-amber"></span> <strong>Aux A</strong> — Effects send (Bus 1)</div>
+        <div><span class="led on-amber"></span> <strong>Aux B</strong> — Effects send (Bus 2)</div>
+        <div><span class="led"></span> <strong>Click</strong> — Metronome (separate)</div>
+      </div>
+    </div>
+    <div class="section" style="flex:1">
+      <div class="section-title">Scene</div>
+      <div class="preset-display" style="margin-bottom:8px;">Axel F — Full Arrangement</div>
+      <div style="display:flex;gap:6px;">
+        <button class="top-btn" style="flex:1">◀</button>
+        <button class="top-btn" style="flex:1">LOAD</button>
+        <button class="top-btn" style="flex:1">SAVE</button>
+        <button class="top-btn" style="flex:1">▶</button>
+      </div>
+      <div class="text-xs mt-8">Saves all 5 module patches + mixer state</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /panel-container -->
+
+<script>
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+  document.getElementById(`panel-${tabName}`).classList.add('active');
+}
+</script>
+
+</body>
+</html>
