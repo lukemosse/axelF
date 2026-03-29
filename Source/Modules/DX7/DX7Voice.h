@@ -48,6 +48,7 @@ private:
     float lfoAMD = 0.0f;
     int lfoDelaySamples = 0;
     int samplesSinceNoteOn = 0;
+    int antiClickCounter = -1;    // ≥0 = fade-in active (counts up to 32)
 };
 
 } // namespace axelf::dx7

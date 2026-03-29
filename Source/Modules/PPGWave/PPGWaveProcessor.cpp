@@ -74,6 +74,11 @@ void PPGWaveProcessor::updateVoiceParameters()
     int noiseColorIdx = static_cast<int>(safeLoad("ppg_noise_color", 0.0f));
     float noiseColorVal = (noiseColorIdx == 0) ? 1.0f : 0.3f;
 
+    // Voice mode: 0=Poly, 1=Unison, 2=Dual
+    int voiceModeInt = static_cast<int>(safeLoad("ppg_voice_mode", 0.0f));
+    float unisonDetuneCents = safeLoad("ppg_unison_detune", 15.0f);
+    synth.unisonMode = (voiceModeInt == 1);
+
     for (int v = 0; v < synth.getNumVoices(); ++v)
     {
         if (auto* voice = dynamic_cast<PPGWaveVoice*>(synth.getVoice(v)))
@@ -169,6 +174,18 @@ void PPGWaveProcessor::updateVoiceParameters()
             voice->setPortamento(
                 safeLoad("ppg_porta_time", 0.0f),
                 static_cast<int>(safeLoad("ppg_porta_mode", 0.0f)));
+
+            // Unison: per-voice detune spread and stereo pan
+            if (voiceModeInt == 1 && synth.getNumVoices() > 1)
+            {
+                float t = static_cast<float>(v) / static_cast<float>(synth.getNumVoices() - 1);
+                float spread = (t - 0.5f) * 2.0f;  // -1 to +1
+                voice->setUnisonParams(spread * unisonDetuneCents, t);
+            }
+            else
+            {
+                voice->setUnisonParams(0.0f, 0.5f);
+            }
         }
     }
 }

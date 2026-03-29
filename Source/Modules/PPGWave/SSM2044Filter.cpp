@@ -14,8 +14,14 @@ void SSM2044Filter::setSampleRate(double sampleRate)
 
 void SSM2044Filter::setParameters(float cutoffHz, float resonance, Mode filterMode)
 {
-    cutoff = std::clamp(cutoffHz, 20.0f, static_cast<float>(currentSampleRate * 0.49));
-    reso = std::clamp(resonance, 0.0f, 1.0f);
+    float clampedCutoff = std::clamp(cutoffHz, 20.0f, static_cast<float>(currentSampleRate * 0.49));
+    float clampedReso = std::clamp(resonance, 0.0f, 1.0f);
+
+    if (clampedCutoff == cutoff && clampedReso == reso && filterMode == mode)
+        return;
+
+    cutoff = clampedCutoff;
+    reso = clampedReso;
     mode = filterMode;
     updateCoefficients();
 }

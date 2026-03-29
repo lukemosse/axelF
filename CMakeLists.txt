@@ -60,12 +60,14 @@ target_sources(AxelF
         Source/Modules/Jupiter8/Jupiter8DCO.cpp
         Source/Modules/Jupiter8/Jupiter8Params.cpp
 
-        # Moog 15
+        # Moog 15 (Minimoog Model D)
         Source/Modules/Moog15/Moog15Processor.cpp
         Source/Modules/Moog15/Moog15Editor.cpp
         Source/Modules/Moog15/Moog15Voice.cpp
         Source/Modules/Moog15/Moog15VCO.cpp
         Source/Modules/Moog15/Moog15Params.cpp
+        Source/Modules/Moog15/MoogContour.cpp
+        Source/Modules/Moog15/MoogLadder.cpp
 
         # JX-3P
         Source/Modules/JX3P/JX3PProcessor.cpp

@@ -1,6 +1,7 @@
 #include "JX3PProcessor.h"
 #include "JX3PVoice.h"
 #include "JX3PEditor.h"
+#include <cmath>
 
 namespace axelf::jx3p
 {
@@ -62,6 +63,11 @@ void JX3PProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         float l = buffer.getSample(0, sample);
         float r = buffer.getSample(1, sample);
         chorus.processStereo(l, r);
+
+        // Sanitise output — clamp NaN/Inf to zero to prevent loud crashes
+        if (!std::isfinite(l)) l = 0.0f;
+        if (!std::isfinite(r)) r = 0.0f;
+
         buffer.setSample(0, sample, l);
         buffer.setSample(1, sample, r);
     }
@@ -117,6 +123,9 @@ void JX3PProcessor::updateVoiceParameters()
     float crossModDepth  = safeLoad("jx3p_dco_cross_mod", 0.0f);
     int   dcoSync        = static_cast<int>(safeLoad("jx3p_dco_sync", 0.0f));
     float pulseWidth     = safeLoad("jx3p_pulse_width", 0.5f);
+    float dco2PW         = safeLoad("jx3p_dco2_pw", 0.5f);
+    float noiseLvl       = safeLoad("jx3p_noise_level", 0.0f);
+    float portamento     = safeLoad("jx3p_portamento", 0.0f);
     float chorusSpread   = safeLoad("jx3p_chorus_spread", 0.5f);
 
     chorus.setSpread(chorusSpread);
@@ -133,7 +142,8 @@ void JX3PProcessor::updateVoiceParameters()
                                  dco1Range, mixDco1, mixDco2,
                                  vcfLfoAmount, vcfKeyTrack,
                                  lfoDelay, crossModDepth, dcoSync,
-                                 pulseWidth);
+                                 pulseWidth, dco2PW,
+                                 noiseLvl, portamento);
         }
     }
 }

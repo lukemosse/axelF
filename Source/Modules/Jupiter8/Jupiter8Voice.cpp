@@ -55,6 +55,14 @@ void Jupiter8Voice::startNote(int midiNoteNumber, float vel,
     env1.noteOn();
     env2.noteOn();
 
+    // Reset filter + DSP state to prevent stale transient clicks
+    vcf.reset();
+    subPhase = 0.0f;
+    hpfPrevIn = 0.0f;
+    hpfPrevOut = 0.0f;
+    prevDco2Out = 0.0f;
+    antiClickCounter = 0;
+
     // Reset smoothed values at voice start
     cutoffSmoothed.reset(getSampleRate(), 0.02);
     resoSmoothed.reset(getSampleRate(), 0.02);
@@ -128,9 +136,10 @@ void Jupiter8Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
         float totalLfoDepth = lfoDepthAmount + modWheelValue * (1.0f - lfoDepthAmount);
         float lfoPitchMod = totalLfoDepth * effectiveLfo * 0.02f;
 
-        // Pitch bend + LFO pitch modulation
+        // Pitch bend + LFO pitch modulation + unison detune
         float bendMultiplier = std::pow(2.0f, pitchBendSemitones / 12.0f);
-        float pitchMod = bendMultiplier * (1.0f + lfoPitchMod);
+        float unisonMul = std::pow(2.0f, unisonDetuneCents / 1200.0f);
+        float pitchMod = bendMultiplier * unisonMul * (1.0f + lfoPitchMod);
         float detuneMultiplier = std::pow(2.0f, dco2DetuneCents / 1200.0f);
 
         // Cross-modulation: DCO-2 output FMs DCO-1 frequency
@@ -162,28 +171,34 @@ void Jupiter8Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
 
         prevDco2Out = dco2Out;
 
-        // Sub-oscillator: square wave at half DCO-1 frequency
-        // We derive it from DCO-1's phase — toggle every other cycle
+        // Sub-oscillator: square wave one octave below DCO-1 with PolyBLEP
         float subOut = 0.0f;
         if (subLevel > 0.001f)
         {
-            // Simple sub: -1 octave square from noise-free digital approach
-            // Use DCO-1 phase wrap count parity (approximate with sign of sin at half freq)
-            float subPhaseRate = portaFreq * pitchMod * crossModMul * 0.5f;
-            static thread_local float subPhase = 0.0f;
-            subPhase += subPhaseRate / sr;
+            float subFreq = portaFreq * pitchMod * crossModMul * 0.5f;
+            double subInc = static_cast<double>(subFreq) / static_cast<double>(sr);
+            subPhase += static_cast<float>(subInc);
             if (subPhase >= 1.0f) subPhase -= 1.0f;
+
+            // PolyBLEP anti-aliased square at sub frequency
             subOut = (subPhase < 0.5f) ? 1.0f : -1.0f;
+            double dt = subInc;
+            double t1 = static_cast<double>(subPhase);
+            if (t1 < dt)      { double n = t1 / dt; subOut += static_cast<float>(n + n - n * n - 1.0); }
+            else if (t1 > 1.0 - dt) { double n = (t1 - 1.0) / dt; subOut += static_cast<float>(n * n + n + n + 1.0); }
+            double t2 = std::fmod(t1 + 0.5, 1.0);
+            if (t2 < dt)      { double n = t2 / dt; subOut -= static_cast<float>(n + n - n * n - 1.0); }
+            else if (t2 > 1.0 - dt) { double n = (t2 - 1.0) / dt; subOut -= static_cast<float>(n * n + n + n + 1.0); }
         }
 
-        // White noise generator for noise mix
+        // White noise generator for noise mix (separate PRNG from DCO-2 noise)
         float noiseOut = 0.0f;
         if (noiseLevel > 0.001f)
         {
-            noiseState ^= noiseState << 13;
-            noiseState ^= noiseState >> 17;
-            noiseState ^= noiseState << 5;
-            noiseOut = static_cast<float>(static_cast<int32_t>(noiseState)) / 2147483648.0f;
+            noiseState2 ^= noiseState2 << 13;
+            noiseState2 ^= noiseState2 >> 17;
+            noiseState2 ^= noiseState2 << 5;
+            noiseOut = static_cast<float>(static_cast<int32_t>(noiseState2)) / 2147483648.0f;
         }
 
         // Oscillator mix
@@ -194,6 +209,19 @@ void Jupiter8Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
                      + subOut  * subLevel
                      + noiseOut * noiseLevel;
 
+        // HPF (1-pole high-pass) before VCF — Jupiter-8 Off/1/2/3
+        if (hpfMode > 0)
+        {
+            // Corner frequencies: mode 1=250Hz, 2=500Hz, 3=1000Hz
+            static constexpr float hpfFreqs[] = { 0.0f, 250.0f, 500.0f, 1000.0f };
+            float fc = hpfFreqs[hpfMode];
+            float rc = 1.0f / (2.0f * 3.14159265f * fc);
+            float alpha = rc / (rc + 1.0f / sr);
+            hpfPrevOut = alpha * (hpfPrevOut + oscOut - hpfPrevIn);
+            hpfPrevIn = oscOut;
+            oscOut = hpfPrevOut;
+        }
+
         // VCF key tracking
         float keyTrackOffset = 0.0f;
         if (vcfKeyTrackMode == 1) // 50%
@@ -201,18 +229,28 @@ void Jupiter8Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
         else if (vcfKeyTrackMode == 2) // 100%
             keyTrackOffset = (static_cast<float>(midiNoteNum) - 60.0f) * 100.0f;
 
-        // Filter with envelope + separate VCF LFO + keyboard tracking
-        float lfoFilterMod = vcfLfoAmount * effectiveLfo * 3000.0f;
+        // Filter with envelope + separate VCF LFO (multiplicative) + keyboard tracking
         float smCutoff = cutoffSmoothed.getNextValue();
         float smReso = resoSmoothed.getNextValue();
-        float modCutoff = smCutoff + vcfEnvDepth * env1Val * 10000.0f
-                        + lfoFilterMod + keyTrackOffset;
+        float lfoFilterMul = std::pow(2.0f, vcfLfoAmount * effectiveLfo * 2.0f); // ±2 octaves
+        float modCutoff = (smCutoff * lfoFilterMul)
+                        + vcfEnvDepth * env1Val * 10000.0f
+                        + keyTrackOffset;
         modCutoff = std::clamp(modCutoff, 20.0f, 20000.0f);
         vcf.setParameters(modCutoff, smReso);
 
         float filtered = vcf.processSample(oscOut);
 
         float output = softClip(filtered * env2Val * velocity);
+
+        // Anti-click fade-in over 32 samples
+        if (antiClickCounter >= 0 && antiClickCounter < 32)
+        {
+            output *= static_cast<float>(antiClickCounter) / 32.0f;
+            ++antiClickCounter;
+            if (antiClickCounter >= 32)
+                antiClickCounter = -1;
+        }
 
         int pos = startSample + sample;
         buffer.addSample(0, pos, output);
@@ -230,7 +268,7 @@ void Jupiter8Voice::setParameters(float dco1Wave, float dco1Range,
                                    float pulseWidth, float subLvl, float noiseLvl,
                                    int vcfKeyTrk, float vcfLfo, float lfoDly,
                                    float porta, float crossModD, int dcoSyncOn,
-                                   int voiceMode)
+                                   int voiceMode, int hpf)
 {
     dco1.setWaveform(static_cast<int>(dco1Wave));
     dco1.setRange(dco1Range);
@@ -270,6 +308,7 @@ void Jupiter8Voice::setParameters(float dco1Wave, float dco1Range,
     portaRate = porta;
     crossMod = crossModD;
     syncEnabled = (dcoSyncOn != 0);
+    hpfMode = hpf;
     juce::ignoreUnused(voiceMode);
 }
 

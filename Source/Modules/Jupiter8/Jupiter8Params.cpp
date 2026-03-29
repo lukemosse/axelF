@@ -165,6 +165,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         juce::ParameterID{ "jup8_arp_range", 1 }, "Arp Range",
         juce::StringArray{ "1 Oct", "2 Oct", "3 Oct" }, 0));
 
+    // Arp Rate (beats per step: 1/32 to 1/4)
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ "jup8_arp_rate", 1 }, "Arp Rate",
+        juce::StringArray{ "1/32", "1/16", "1/8", "1/4" }, 1));
+
     return { params.begin(), params.end() };
 }
 

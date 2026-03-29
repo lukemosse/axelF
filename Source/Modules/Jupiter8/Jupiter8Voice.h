@@ -28,6 +28,9 @@ public:
     void renderNextBlock(juce::AudioBuffer<float>& buffer,
                          int startSample, int numSamples) override;
 
+    void setVoiceIndex(int idx) { voiceIndex = idx; }
+    void setUnisonDetune(float cents) { unisonDetuneCents = cents; }
+
     void setParameters(float dco1Wave, float dco1Range,
                        float dco2Wave, float dco2Range, float dco2Detune,
                        float mixDco1, float mixDco2,
@@ -38,7 +41,7 @@ public:
                        float pulseWidth, float subLevel, float noiseLevel,
                        int vcfKeyTrack, float vcfLfoAmount, float lfoDelay,
                        float portamento, float crossModDepth, int dcoSync,
-                       int voiceMode);
+                       int voiceMode, int hpfMode);
 
 private:
     Jupiter8DCO dco1;
@@ -77,6 +80,14 @@ private:
     float crossMod = 0.0f;          // cross-mod depth
     bool  syncEnabled = false;      // hard sync DCO-2→DCO-1
     float prevDco2Out = 0.0f;       // for cross-mod (1-sample delay)
+    float subPhase = 0.0f;          // sub-oscillator phase accumulator (per-voice)
+    uint32_t noiseState2 = 67890;   // separate PRNG for noise mixer path
+    int   hpfMode = 0;             // 0=Off, 1=250Hz, 2=500Hz, 3=1kHz
+    float hpfPrevIn = 0.0f;        // 1-pole HPF state
+    float hpfPrevOut = 0.0f;
+    int   voiceIndex = 0;          // 0–7 for unison spread
+    float unisonDetuneCents = 0.0f; // per-voice unison detune
+    int   antiClickCounter = -1;   // ≥0 = fade-in active (counts up to 32)
 
     // Parameter smoothing (Phase 8)
     juce::SmoothedValue<float> cutoffSmoothed;

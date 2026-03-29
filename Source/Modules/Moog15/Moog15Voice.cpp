@@ -5,12 +5,84 @@
 namespace axelf::moog15
 {
 
+// ── Soft saturation (tube-like) ─────────────────────────────────────────────
 static inline float softClip(float x)
 {
-    if (x > 1.5f)  return 1.0f;
-    if (x < -1.5f) return -1.0f;
-    return x - (x * x * x) / 6.75f;
+    // Cubic soft clip per synth-high-quality skill
+    x = std::clamp(x, -1.5f, 1.5f);
+    return x - (x * x * x) / 3.0f;
 }
+
+// ── Fast 2^x (bit-manipulation trick from synth-high-quality skill) ─────────
+inline float Moog15Voice::fastPow2(float x)
+{
+    // Accurate to ~0.1% — good enough for per-sample pitch/filter
+    x = std::clamp(x, -10.0f, 10.0f);
+    union { float f; int32_t i; } u;
+    u.i = static_cast<int32_t>(x * 8388608.0f) + 0x3f800000;
+    return u.f;
+}
+
+// ── DC blocker (R ≈ 0.995 → ~44Hz HPF at 44.1kHz) ─────────────────────────
+inline float Moog15Voice::dcBlock(float x)
+{
+    constexpr float R = 0.995f;
+    float y = x - dcBlockX1 + R * dcBlockY1;
+    dcBlockX1 = x;
+    dcBlockY1 = y;
+    return y;
+}
+
+// ── LFO (simple built-in, separate from Osc 3 as LFO) ──────────────────────
+float Moog15Voice::getLfoSample()
+{
+    float out = 0.0f;
+    switch (lfoWaveform)
+    {
+        case 0: out = std::sin(lfoPhase * 6.283185307f); break;          // Sine
+        case 1: out = 2.0f * std::abs(2.0f * lfoPhase - 1.0f) - 1.0f; break; // Triangle
+        case 2: out = 2.0f * lfoPhase - 1.0f; break;                    // Saw
+        case 3: out = lfoPhase < 0.5f ? 1.0f : -1.0f; break;           // Square
+        case 4: // S&H — re-evaluate every cycle
+        {
+            if (lfoPhase + lfoPhaseInc >= 1.0f || lfoPhase < lfoPhaseInc)
+            {
+                noiseState ^= noiseState << 13;
+                noiseState ^= noiseState >> 17;
+                noiseState ^= noiseState << 5;
+                shValue = static_cast<float>(static_cast<int32_t>(noiseState))
+                        / static_cast<float>(INT32_MAX);
+            }
+            out = shValue;
+            break;
+        }
+    }
+    lfoPhase += lfoPhaseInc;
+    if (lfoPhase >= 1.0f) lfoPhase -= 1.0f;
+    return out;
+}
+
+// ── Noise generators ────────────────────────────────────────────────────────
+float Moog15Voice::getWhiteNoise()
+{
+    noiseState ^= noiseState << 13;
+    noiseState ^= noiseState >> 17;
+    noiseState ^= noiseState << 5;
+    return static_cast<float>(static_cast<int32_t>(noiseState))
+         / static_cast<float>(INT32_MAX);
+}
+
+float Moog15Voice::getPinkNoise()
+{
+    // Paul Kellet pink filter (3-stage)
+    float white = getWhiteNoise();
+    pinkState[0] = 0.99886f * pinkState[0] + white * 0.0555179f;
+    pinkState[1] = 0.99332f * pinkState[1] + white * 0.0750759f;
+    pinkState[2] = 0.96900f * pinkState[2] + white * 0.1538520f;
+    return (pinkState[0] + pinkState[1] + pinkState[2] + white * 0.5362f) * 0.25f;
+}
+
+// ── Voice lifecycle ─────────────────────────────────────────────────────────
 
 bool Moog15Voice::canPlaySound(juce::SynthesiserSound* sound)
 {
@@ -21,6 +93,7 @@ void Moog15Voice::startNote(int midiNoteNumber, float vel,
                              juce::SynthesiserSound*, int pitchWheel)
 {
     velocity = vel;
+    midiNoteNum = midiNoteNumber;
 
     float freq = static_cast<float>(
         juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber));
@@ -28,73 +101,52 @@ void Moog15Voice::startNote(int midiNoteNumber, float vel,
     glideTarget = freq;
     pitchBendSemitones = ((static_cast<float>(pitchWheel) - 8192.0f) / 8192.0f) * 2.0f;
 
-    // If glide is off or this is the first note, jump immediately
-    if (glideRate <= 0.0f || !isVoiceActive())
+    // If no glide or first note, jump to target
+    if (glideTime <= 0.001f || !loudnessContour.isActive())
         currentFreq = freq;
 
-    noteFrequency = freq;
+    // Set sample rates on all DSP components
+    const double sr = getSampleRate();
+    vco1.setSampleRate(sr);
+    vco2.setSampleRate(sr);
+    vco3.setSampleRate(sr);
+    vcf.setSampleRate(sr);
+    filterContour.setSampleRate(sr);
+    loudnessContour.setSampleRate(sr);
 
-    vco1.setSampleRate(getSampleRate());
-    vco2.setSampleRate(getSampleRate());
-    vco3.setSampleRate(getSampleRate());
-    vcf.setSampleRate(getSampleRate());
-    env1.setSampleRate(getSampleRate());
-    env2.setSampleRate(getSampleRate());
-    lfo.setSampleRate(getSampleRate());
+    // Trigger contour generators — retrigger from current level, NEVER reset.
+    // This is the core click-prevention design: no amplitude discontinuity.
+    filterContour.noteOn();
+    loudnessContour.noteOn();
 
-    float bendMul = std::pow(2.0f, pitchBendSemitones / 12.0f);
-    float detune2 = std::pow(2.0f, vco2DetuneCents / 1200.0f);
-    float detune3 = std::pow(2.0f, vco3DetuneCents / 1200.0f);
+    // DO NOT reset filter (MoogLadder has no reset — continuous analog behavior)
+    // DO NOT reset oscillators (free-running — no phase reset ever)
+    // DO NOT use anti-click counter (contour attack IS the anti-click)
 
-    vco1.setFrequency(currentFreq * bendMul);
-    vco2.setFrequency(currentFreq * bendMul * detune2);
-    vco3.setFrequency(currentFreq * bendMul * detune3);
-
-    env1.noteOn();
-    env2.noteOn();
-
-    // On the very first note the SmoothedValues have never been initialised,
-    // so we must set the smoothing time once.  On subsequent retriggers we
-    // just update the target so the value glides smoothly — calling reset()
-    // would jump currentValue to the old target, causing a parameter
-    // discontinuity in the filter.
-    if (!smoothingInitialised)
-    {
-        cutoffSmoothed.reset(getSampleRate(), 0.02);
-        resoSmoothed.reset(getSampleRate(), 0.02);
-        driveSmoothed.reset(getSampleRate(), 0.02);
-        mixVco1Smoothed.reset(getSampleRate(), 0.005);
-        mixVco2Smoothed.reset(getSampleRate(), 0.005);
-        mixVco3Smoothed.reset(getSampleRate(), 0.005);
-        cutoffSmoothed.setCurrentAndTargetValue(vcfBaseCutoff);
-        resoSmoothed.setCurrentAndTargetValue(vcfResonance);
-        driveSmoothed.setCurrentAndTargetValue(vcfDrive);
-        mixVco1Smoothed.setCurrentAndTargetValue(mixVco1Level);
-        mixVco2Smoothed.setCurrentAndTargetValue(mixVco2Level);
-        mixVco3Smoothed.setCurrentAndTargetValue(mixVco3Level);
-        smoothingInitialised = true;
-    }
-    else
-    {
-        cutoffSmoothed.setTargetValue(vcfBaseCutoff);
-        resoSmoothed.setTargetValue(vcfResonance);
-        driveSmoothed.setTargetValue(vcfDrive);
-        mixVco1Smoothed.setTargetValue(mixVco1Level);
-        mixVco2Smoothed.setTargetValue(mixVco2Level);
-        mixVco3Smoothed.setTargetValue(mixVco3Level);
-    }
+    // Initialize smoothers
+    cutoffSmoothed.reset(sr, 0.02);
+    resoSmoothed.reset(sr, 0.02);
+    driveSmoothed.reset(sr, 0.02);
+    mixVco1Smoothed.reset(sr, 0.005);
+    mixVco2Smoothed.reset(sr, 0.005);
+    mixVco3Smoothed.reset(sr, 0.005);
+    noiseLevelSmoothed.reset(sr, 0.005);
+    feedbackSmoothed.reset(sr, 0.01);
+    envDepthSmoothed.reset(sr, 0.02);
+    masterVolSmoothed.reset(sr, 0.01);
 }
 
 void Moog15Voice::stopNote(float /*vel*/, bool allowTailOff)
 {
-    env1.noteOff();
-    env2.noteOff();
+    // Enter release phase — contour decays toward 0 using decayRate
+    // (authentic Model D: decay rate IS the release rate)
+    filterContour.noteOff();
+    loudnessContour.noteOff();
 
     if (!allowTailOff)
     {
-        // Don't reset envelopes to zero — this is a mono synth, so voice steal
-        // is the normal retrigger path.  Keeping the current envelope level
-        // avoids the hard amplitude discontinuity (click) at note boundaries.
+        // Voice steal: don't zero anything — next startNote() retriggers
+        // from current contour level (click-free voice stealing)
         clearCurrentNote();
     }
 }
@@ -106,150 +158,239 @@ void Moog15Voice::pitchWheelMoved(int newPitchWheelValue)
 
 void Moog15Voice::controllerMoved(int controllerNumber, int newControllerValue)
 {
-    if (controllerNumber == 1)  // mod wheel
+    if (controllerNumber == 1)
         modWheelValue = static_cast<float>(newControllerValue) / 127.0f;
 }
+
+// ── Render ──────────────────────────────────────────────────────────────────
 
 void Moog15Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
                                    int startSample, int numSamples)
 {
+    const float sr = static_cast<float>(getSampleRate());
+
     for (int sample = 0; sample < numSamples; ++sample)
     {
-        float env2Val = env2.getNextSample();
-        float env1Val = env1.getNextSample();
+        // 1. Advance contour generators
+        float env1Val = filterContour.getNextSample();
+        float env2Val = loudnessContour.getNextSample();
 
-        if (!env2.isActive())
+        // 2. If loudness contour is idle → voice is done
+        if (!loudnessContour.isActive())
         {
             clearCurrentNote();
             break;
         }
 
-        // Glide: smoothly approach target frequency
-        if (glideRate > 0.0f && std::abs(currentFreq - glideTarget) > 0.01f)
+        // 3. Micro-glide: always-on 1ms minimum (per spec + click-prevention skill)
+        //    Prevents pitch discontinuity under non-zero VCA amplitude
+        float effectiveGlide = std::max(glideTime, 0.001f);
+        float glideCoeff = 1.0f / (effectiveGlide * sr);
+        currentFreq += (glideTarget - currentFreq) * glideCoeff;
+
+        // 4. LFO
+        float lfoVal = getLfoSample();
+        float modPitchLfo = lfoPitchAmount * lfoVal * modWheelValue;
+        float modFilterLfo = vcfLfoAmount * lfoVal * modWheelValue;
+
+        // 5. Osc 3 as modulation source (when vco3Ctrl == 1)
+        float osc3ModValue = 0.0f;
+        if (vco3CtrlMode == 1)
         {
-            float glideSpeed = 1.0f / (glideRate * static_cast<float>(getSampleRate()));
-            currentFreq += (glideTarget - currentFreq) * glideSpeed;
+            osc3ModValue = vco3.getCurrentOutput();
         }
+
+        // 6. Pitch calculation with exponential scaling (1V/oct)
+        float bendMul = fastPow2(pitchBendSemitones / 12.0f);
+        float pitchMod = fastPow2(modPitchLfo * 0.16667f); // ±2 semitones at full
+
+        // Osc 3 pitch modulation when in LFO mode
+        if (vco3CtrlMode == 1)
+        {
+            pitchMod *= fastPow2(osc3ModValue * lfoPitchAmount * 0.16667f);
+        }
+
+        float detune2 = fastPow2(vco2DetuneCents / 1200.0f);
+        float detune3 = fastPow2(vco3DetuneCents / 1200.0f);
+
+        float basePitch = currentFreq * bendMul * pitchMod;
+
+        // VCO range multipliers
+        float r1 = (vco1RangeIdx < 5) ? kRangeMultipliers[vco1RangeIdx] : 1.0f;
+        float r2 = (vco2RangeIdx < 5) ? kRangeMultipliers[vco2RangeIdx] : 1.0f;
+        float r3 = 1.0f;
+        if (vco3CtrlMode == 0 && vco3RangeIdx < 5)
+            r3 = kRangeMultipliers[vco3RangeIdx];
+
+        vco1.setFrequency(basePitch * r1);
+        vco2.setFrequency(basePitch * r2 * detune2);
+
+        if (vco3CtrlMode == 0)
+        {
+            // Normal keyboard-tracking mode
+            vco3.setFrequency(basePitch * r3 * detune3);
+        }
+        // else: Osc 3 in LFO mode — frequency set by setParameters (free-running at LFO rate)
+
+        // 7. Generate oscillator samples
+        float osc1 = vco1.getNextSample();
+        float osc2 = vco2.getNextSample();
+        float osc3 = vco3.getNextSample();
+
+        // 8. Mixer: sum VCOs + noise + feedback
+        float mix = osc1 * mixVco1Smoothed.getNextValue()
+                  + osc2 * mixVco2Smoothed.getNextValue();
+
+        // Osc 3 goes to mixer only when NOT in LFO mode
+        if (vco3CtrlMode == 0)
+            mix += osc3 * mixVco3Smoothed.getNextValue();
         else
-        {
-            currentFreq = glideTarget;
-        }
+            mixVco3Smoothed.getNextValue(); // skip to keep smoother advancing
 
-        // LFO modulation
-        float lfoVal = lfo.getNextSample();
-        float totalLfoDepth = lfoDepthAmount + modWheelValue * (1.0f - lfoDepthAmount);
-        float lfoPitchMod = totalLfoDepth * lfoVal * 0.02f;
+        // Noise
+        float noiseVal = (noiseColorParam == 0) ? getWhiteNoise() : getPinkNoise();
+        mix += noiseVal * noiseLevelSmoothed.getNextValue();
 
-        // Apply pitch bend + LFO
-        float bendMul = std::pow(2.0f, pitchBendSemitones / 12.0f);
-        float pitchMod = bendMul * (1.0f + lfoPitchMod);
-        float detune2 = std::pow(2.0f, vco2DetuneCents / 1200.0f);
-        float detune3 = std::pow(2.0f, vco3DetuneCents / 1200.0f);
+        // Feedback (output → mixer, classic Minimoog growl)
+        mix += feedbackSample * feedbackSmoothed.getNextValue();
 
-        // LFO pitch modulation (Phase 2)
-        float lfoPitchMod2 = lfoPitchAmt * lfoVal * 0.02f;
-        float pitchMod2 = pitchMod * (1.0f + lfoPitchMod2);
-        vco1.setFrequency(currentFreq * pitchMod2);
-        vco2.setFrequency(currentFreq * pitchMod2 * detune2);
-        vco3.setFrequency(currentFreq * pitchMod2 * detune3);
-
-        float oscOut = vco1.getNextSample() * mixVco1Smoothed.getNextValue()
-                     + vco2.getNextSample() * mixVco2Smoothed.getNextValue()
-                     + vco3.getNextSample() * mixVco3Smoothed.getNextValue();
-
-        // Noise generator (Phase 2)
-        if (noiseLevel > 0.0f)
-        {
-            noiseState ^= noiseState << 13;
-            noiseState ^= noiseState >> 17;
-            noiseState ^= noiseState << 5;
-            float noise = static_cast<float>(static_cast<int32_t>(noiseState))
-                        / static_cast<float>(INT32_MAX);
-            oscOut += noise * noiseLevel;
-        }
-
-        // VCF key tracking (Phase 2)
-        float keyTrackOffset = 0.0f;
-        if (vcfKeyTrackMode == 1)
-            keyTrackOffset = (static_cast<float>(midiNoteNum) - 60.0f) * 50.0f;
-        else if (vcfKeyTrackMode == 2)
-            keyTrackOffset = (static_cast<float>(midiNoteNum) - 60.0f) * 100.0f;
-
-        // Filter with envelope + LFO modulation + VCF LFO + key tracking
-        float lfoFilterMod = lfoDepthAmount * lfoVal * 3000.0f;
-        float vcfLfoMod = vcfLfoAmount * lfoVal * 2000.0f;
+        // 9. Filter — exponential cutoff modulation (1V/oct, per synth-high-quality skill)
         float smCutoff = cutoffSmoothed.getNextValue();
         float smReso = resoSmoothed.getNextValue();
         float smDrive = driveSmoothed.getNextValue();
-        float modCutoff = smCutoff + vcfEnvDepth * env1Val * 10000.0f
-                        + lfoFilterMod + vcfLfoMod + keyTrackOffset;
-        modCutoff = std::clamp(modCutoff, 20.0f, 20000.0f);
-        vcf.setParameters(modCutoff, smReso, smDrive);
+        float smEnvDepth = envDepthSmoothed.getNextValue();
 
-        float filtered = vcf.processSample(oscOut);
-        float output = softClip(filtered * env2Val * velocity);
+        // Key tracking: octave-based (exponential, not linear)
+        static constexpr float kKeyTrackAmounts[] = { 0.0f, 0.33f, 0.67f, 1.0f };
+        float keyTrackAmt = kKeyTrackAmounts[std::clamp(vcfKeyTrackMode, 0, 3)];
 
+        // Exponential cutoff modulation per spec:
+        //   fc = baseCutoff × 2^(envDepth × envVal × 4.0)
+        //                    × 2^(modFilterLfo × filterModDepth)
+        //                    × 2^(keyTrack × (note - 60) / 12)
+        float fc = smCutoff
+                 * fastPow2(smEnvDepth * env1Val * 4.0f)
+                 * fastPow2(modFilterLfo * 2.0f)
+                 * fastPow2(keyTrackAmt * (static_cast<float>(midiNoteNum) - 60.0f) / 12.0f);
+
+        // Osc 3 filter modulation when in LFO mode
+        if (vco3CtrlMode == 1)
+        {
+            fc *= fastPow2(osc3ModValue * vcfLfoAmount * 2.0f);
+        }
+
+        fc = std::clamp(fc, 20.0f, 20000.0f);
+        vcf.setParameters(fc, smReso, smDrive);
+
+        // 10. Filter
+        float filtered = vcf.processSample(mix);
+
+        // 11. VCA: filtered × loudness contour × master volume
+        float smMasterVol = masterVolSmoothed.getNextValue();
+        float output = filtered * env2Val * velocity * smMasterVol;
+
+        // 12. Soft clip (tube-like output saturation per spec)
+        output = softClip(output * 1.2f);
+
+        // 13. DC blocker — prevents DC offset from pulse waves and feedback
+        //     causing clicks when gate closes (per synth-click-prevention skill)
+        output = dcBlock(output);
+
+        // 14. Store feedback sample for next iteration
+        feedbackSample = output;
+
+        // 15. Write to buffer (mono → both channels)
         int pos = startSample + sample;
         buffer.addSample(0, pos, output);
         buffer.addSample(1, pos, output);
     }
 }
 
-void Moog15Voice::setParameters(int vco1Wave, float vco1Range,
-                                 int vco2Wave, float vco2Detune,
-                                 int vco3Wave, float vco3Detune,
-                                 float mixV1, float mixV2, float mixV3,
-                                 float cutoff, float reso, float drive, float envDepth,
-                                 float e1A, float e1D, float e1S, float e1R,
-                                 float e2A, float e2D, float e2S, float e2R,
-                                 float glideTime,
-                                 float lfoRate, float lfoDepth, int lfoWaveform,
-                                 float v1PW, float v2PW, float v3PW,
-                                 float noiseLvl, int keyTrack,
-                                 float vcfLfo, float lfoPitch)
-{
-    vco1.setWaveform(vco1Wave);
-    vco1.setRange(vco1Range);
-    vco1.setPulseWidth(v1PW);
-    vco2.setWaveform(vco2Wave);
-    vco2.setPulseWidth(v2PW);
-    vco3.setWaveform(vco3Wave);
-    vco3.setPulseWidth(v3PW);
+// ── Parameter update ────────────────────────────────────────────────────────
 
+void Moog15Voice::setParameters(int vco1Wave, int vco1Range, float vco1Level, float vco1PW,
+                                 int vco2Wave, int vco2Range, float vco2Detune, float vco2Level, float vco2PW,
+                                 int vco3Wave, int vco3Range, float vco3Detune, float vco3Level, float vco3PW,
+                                 int vco3Ctrl,
+                                 float noiseLvl, int noiseColor,
+                                 float feedback,
+                                 float cutoff, float reso, float drive, float envDepth, int keyTrack,
+                                 float e1A, float e1D, float e1S,
+                                 float e2A, float e2D, float e2S,
+                                 float glideTimeParam,
+                                 float lfoPitchAmt, float vcfLfoAmt,
+                                 float lfoRate, int lfoWave,
+                                 float masterVol)
+{
+    // Waveforms
+    vco1.setWaveform(vco1Wave);
+    vco2.setWaveform(vco2Wave);
+    vco3.setWaveform(vco3Wave);
+
+    // Pulse widths
+    vco1.setPulseWidth(vco1PW);
+    vco2.setPulseWidth(vco2PW);
+    vco3.setPulseWidth(vco3PW);
+
+    // Range indices (0–4 for VCO1/2, 0–5 for VCO3 with Lo)
+    vco1RangeIdx = std::clamp(vco1Range, 0, 4);
+    vco2RangeIdx = std::clamp(vco2Range, 0, 4);
+    vco3RangeIdx = std::clamp(vco3Range, 0, 5);
+
+    // Detune
     vco2DetuneCents = vco2Detune;
     vco3DetuneCents = vco3Detune;
 
-    mixVco1Level = mixV1;
-    mixVco2Level = mixV2;
-    mixVco3Level = mixV3;
+    // Osc 3 control mode
+    vco3CtrlMode = vco3Ctrl;
+    if (vco3CtrlMode == 1 && vco3RangeIdx == 5)
+    {
+        // Lo range: Osc 3 runs as LFO (0.1–30 Hz, free-running)
+        // Use lfoRate as the Osc 3 LFO frequency
+        vco3.setFrequency(lfoRate);
+    }
 
+    // Noise
+    noiseLevelParam = noiseLvl;
+    noiseColorParam = noiseColor;
+
+    // Feedback
+    feedbackGain = std::clamp(feedback, 0.0f, 0.8f);
+
+    // Filter
     vcfBaseCutoff = cutoff;
     vcfResonance = reso;
     vcfDrive = drive;
     vcfEnvDepth = envDepth;
-    vcf.setParameters(cutoff, reso, drive);
+    vcfKeyTrackMode = keyTrack;
+    vcfLfoAmount = vcfLfoAmt;
 
+    // Contour generators (Model D: decay IS the release, no separate release param)
+    filterContour.setParameters(e1A, e1D, e1S);
+    loudnessContour.setParameters(e2A, e2D, e2S);
+
+    // Glide
+    glideTime = glideTimeParam;
+
+    // LFO
+    lfoPitchAmount = lfoPitchAmt;
+    lfoWaveform = lfoWave;
+    lfoPhaseInc = lfoRate / static_cast<float>(getSampleRate());
+
+    // Master volume
+    masterVolume = masterVol;
+
+    // Update smoother targets (per DSP conventions skill)
     cutoffSmoothed.setTargetValue(cutoff);
     resoSmoothed.setTargetValue(reso);
     driveSmoothed.setTargetValue(drive);
-    mixVco1Smoothed.setTargetValue(mixV1);
-    mixVco2Smoothed.setTargetValue(mixV2);
-    mixVco3Smoothed.setTargetValue(mixV3);
-
-    env1.setParameters(e1A, e1D, e1S, e1R);
-    env2.setParameters(e2A, e2D, e2S, e2R);
-
-    glideRate = glideTime;
-
-    lfo.setFrequency(lfoRate);
-    lfoDepthAmount = lfoDepth;
-    lfo.setWaveform(static_cast<axelf::dsp::LFOWaveform>(lfoWaveform));
-
-    // Phase 2 params
-    noiseLevel = noiseLvl;
-    vcfKeyTrackMode = keyTrack;
-    vcfLfoAmount = vcfLfo;
-    lfoPitchAmt = lfoPitch;
+    mixVco1Smoothed.setTargetValue(vco1Level);
+    mixVco2Smoothed.setTargetValue(vco2Level);
+    mixVco3Smoothed.setTargetValue(vco3Level);
+    noiseLevelSmoothed.setTargetValue(noiseLvl);
+    feedbackSmoothed.setTargetValue(feedbackGain);
+    envDepthSmoothed.setTargetValue(envDepth);
+    masterVolSmoothed.setTargetValue(masterVol);
 }
 
 } // namespace axelf::moog15

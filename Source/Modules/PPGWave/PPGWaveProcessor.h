@@ -8,6 +8,52 @@
 namespace axelf::ppgwave
 {
 
+// Synthesiser subclass that triggers all voices on a single note in Unison mode
+class UnisonSynth : public juce::Synthesiser
+{
+public:
+    bool unisonMode = false;
+
+protected:
+    void noteOn(int midiChannel, int midiNoteNumber, float velocity) override
+    {
+        if (!unisonMode)
+        {
+            Synthesiser::noteOn(midiChannel, midiNoteNumber, velocity);
+            return;
+        }
+
+        auto sound = getSound(0);
+        if (sound == nullptr) return;
+
+        for (int i = 0; i < getNumVoices(); ++i)
+        {
+            auto* voice = getVoice(i);
+            if (voice != nullptr)
+            {
+                stopVoice(voice, 0.0f, false);
+                startVoice(voice, sound.get(), midiChannel, midiNoteNumber, velocity);
+            }
+        }
+    }
+
+    void noteOff(int midiChannel, int midiNoteNumber, float velocity, bool allowTailOff) override
+    {
+        if (!unisonMode)
+        {
+            Synthesiser::noteOff(midiChannel, midiNoteNumber, velocity, allowTailOff);
+            return;
+        }
+
+        for (int i = 0; i < getNumVoices(); ++i)
+        {
+            auto* voice = getVoice(i);
+            if (voice != nullptr && voice->getCurrentlyPlayingNote() == midiNoteNumber)
+                stopVoice(voice, velocity, allowTailOff);
+        }
+    }
+};
+
 class PPGWaveProcessor : public axelf::ModuleProcessor
 {
 public:
@@ -45,7 +91,7 @@ private:
 
     DummyProcessor dummyProcessor;
     juce::AudioProcessorValueTreeState apvts;
-    juce::Synthesiser synth;
+    UnisonSynth synth;
 
     void updateVoiceParameters();
 };

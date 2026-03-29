@@ -11,12 +11,18 @@ void ADSREnvelope::setSampleRate(double sampleRate)
 
 void ADSREnvelope::setParameters(float attack, float decay, float sustain, float release)
 {
-    // Convert times (seconds) to per-sample rates
     const float minTime = 0.001f;
-    attackRate   = 1.0f / (std::max(attack, minTime) * static_cast<float>(currentSampleRate));
-    decayRate    = 1.0f / (std::max(decay, minTime) * static_cast<float>(currentSampleRate));
+    const float sr = static_cast<float>(currentSampleRate);
+
+    // Attack stays linear (ramp from 0→1 in attackTime seconds)
+    attackRate = 1.0f / (std::max(attack, minTime) * sr);
+
+    // Decay & release use true exponential coefficients.
+    // Multiplier per sample: exp(-6.908 / (time * sampleRate))
+    // gives ~60 dB attenuation (factor 0.001) in the specified time.
+    decayRate    = std::exp(-6.908f / (std::max(decay, minTime) * sr));
     sustainLevel = std::clamp(sustain, 0.0f, 1.0f);
-    releaseRate  = 1.0f / (std::max(release, minTime) * static_cast<float>(currentSampleRate));
+    releaseRate  = std::exp(-6.908f / (std::max(release, minTime) * sr));
 }
 
 void ADSREnvelope::noteOn()
@@ -53,7 +59,8 @@ float ADSREnvelope::getNextSample()
             break;
 
         case State::Decay:
-            output -= decayRate * (output - sustainLevel + 0.0001f);  // exponential decay
+            // True exponential decay toward sustainLevel
+            output = sustainLevel + (output - sustainLevel) * decayRate;
             if (output <= sustainLevel + 0.0001f)
             {
                 output = sustainLevel;
@@ -66,7 +73,8 @@ float ADSREnvelope::getNextSample()
             break;
 
         case State::Release:
-            output -= releaseRate * (output + 0.0001f);  // exponential release
+            // True exponential release toward zero
+            output *= releaseRate;
             if (output <= 0.0001f)
             {
                 output = 0.0f;

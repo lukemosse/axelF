@@ -27,9 +27,8 @@ void PPGWaveVoice::startNote(int midiNoteNumber, float vel,
     oscB.setSampleRate(getSampleRate());
     oscA.reset();
     oscB.reset();
-    filter.setSampleRate(getSampleRate());
-    if (!voiceWasStolen)
-        filter.reset();
+    filter.setSampleRate(getSampleRate() * 2.0);  // 2× for oversampled filter
+    filter.reset();
     lfo.setSampleRate(getSampleRate());
 
     for (auto& env : envelopes)
@@ -38,15 +37,17 @@ void PPGWaveVoice::startNote(int midiNoteNumber, float vel,
         env.noteOn();
     }
 
-    // Anti-click: fade in if voice was stolen, instant start if fresh
+    // Anti-click: only fade in on voice steal (fresh notes don't need it —
+    // filter.reset() above ensures clean state)
     antiClickGain = voiceWasStolen ? 0.0f : 1.0f;
     voiceWasStolen = false;
 
     samplesSinceNoteOn = 0;
     subPhase = 0.0;
-    noiseLPState = 0.0f;
-    smoothWavePosA = 0.0f;
-    smoothWavePosB = 0.0f;
+    pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = 0.0f;
+    prevFilterInput = 0.0f;
+    smoothWavePosA = oscABasePos;
+    smoothWavePosB = oscBBasePos;
 
     if (lfoSync)
         lfo.reset();
@@ -89,6 +90,11 @@ void PPGWaveVoice::controllerMoved(int, int) {}
 void PPGWaveVoice::renderNextBlock(juce::AudioBuffer<float>& buffer,
                                     int startSample, int numSamples)
 {
+    // Pre-compute stereo pan gains (equal-power pan law)
+    float panAngle = stereoPan * 1.5707963f;  // stereoPan × π/2
+    float panL = std::cos(panAngle);
+    float panR = std::sin(panAngle);
+
     for (int sample = 0; sample < numSamples; ++sample)
     {
         // Check if VCA envelope is still active
@@ -128,7 +134,7 @@ void PPGWaveVoice::renderNextBlock(juce::AudioBuffer<float>& buffer,
         }
 
         // Pitch: bend + LFO pitch mod
-        float pitchMod = std::pow(2.0f, (pitchBendSemitones + fadedLfo * lfoPitchAmt * 12.0f) / 12.0f);
+        float pitchMod = std::pow(2.0f, (pitchBendSemitones + fadedLfo * lfoPitchAmt * 12.0f + unisonDetuneOffset / 100.0f) / 12.0f);
         float baseFreq = portaFreq * pitchMod;
 
         // Update oscillator frequencies
@@ -178,8 +184,12 @@ void PPGWaveVoice::renderNextBlock(juce::AudioBuffer<float>& buffer,
         filterFreq *= std::pow(2.0f, filterKeytrack * (static_cast<float>(currentNote) - 60.0f) / 12.0f);
         filterFreq = std::clamp(filterFreq, 20.0f, 20000.0f);
 
+        // 2× oversampled filter to reduce nonlinear aliasing from tanh stages
+        float midInput = (prevFilterInput + mixed) * 0.5f;
         filter.setParameters(filterFreq, filter.getResonance(), filter.getMode());
+        filter.processSample(midInput);
         float filtered = filter.processSample(mixed);
+        prevFilterInput = mixed;
 
         // VCA: envelope * level * velocity * LFO amp mod
         float ampMod = 1.0f - lfoAmpAmt * lfoFade * (1.0f - lfoVal) * 0.5f;
@@ -197,9 +207,25 @@ void PPGWaveVoice::renderNextBlock(juce::AudioBuffer<float>& buffer,
         }
 
         int pos = startSample + sample;
-        buffer.addSample(0, pos, output);
-        buffer.addSample(1, pos, output);
+        buffer.addSample(0, pos, output * panL);
+        buffer.addSample(1, pos, output * panR);
     }
+}
+
+float PPGWaveVoice::polyBLEP(double t, double dt)
+{
+    if (dt <= 0.0) return 0.0f;
+    if (t < dt)
+    {
+        t /= dt;
+        return static_cast<float>(t + t - t * t - 1.0);
+    }
+    if (t > 1.0 - dt)
+    {
+        t = (t - 1.0) / dt;
+        return static_cast<float>(t * t + t + t + 1.0);
+    }
+    return 0.0f;
 }
 
 float PPGWaveVoice::generateSubSample()
@@ -207,19 +233,33 @@ float PPGWaveVoice::generateSubSample()
     subPhase += subPhaseInc;
     if (subPhase >= 1.0) subPhase -= 1.0;
 
-    if (subWave == 0)  // square
-        return subPhase < 0.5 ? 1.0f : -1.0f;
-    else  // sine
+    if (subWave == 0)  // sine
         return std::sin(static_cast<float>(subPhase) * kTwoPi);
+
+    // Square with polyBLEP anti-aliasing
+    float sq = (subPhase < 0.5) ? 1.0f : -1.0f;
+    sq += polyBLEP(subPhase, subPhaseInc);
+    sq -= polyBLEP(std::fmod(subPhase + 0.5, 1.0), subPhaseInc);
+    return sq;
 }
 
 float PPGWaveVoice::generateNoise()
 {
-    // White noise via JUCE Random
-    float white = (juce::Random::getSystemRandom().nextFloat() * 2.0f - 1.0f);
-    // Simple LP filter for color control (0=dark, 1=bright)
-    noiseLPState += (white - noiseLPState) * (0.1f + noiseColor * 0.9f);
-    return noiseLPState;
+    float white = juce::Random::getSystemRandom().nextFloat() * 2.0f - 1.0f;
+
+    if (noiseColor < 0.5f)
+    {
+        // Paul Kellet's economy pink noise filter (-3 dB/octave)
+        pinkB0 = 0.99886f * pinkB0 + white * 0.0555179f;
+        pinkB1 = 0.99332f * pinkB1 + white * 0.0750759f;
+        pinkB2 = 0.96900f * pinkB2 + white * 0.1538520f;
+        pinkB3 = 0.86650f * pinkB3 + white * 0.3104856f;
+        pinkB4 = 0.55000f * pinkB4 + white * 0.5329522f;
+        pinkB5 = -0.7616f * pinkB5 - white * 0.0168980f;
+        return (pinkB0 + pinkB1 + pinkB2 + pinkB3 + pinkB4 + pinkB5 + white * 0.5362f) * 0.11f;
+    }
+
+    return white;
 }
 
 // --- Parameter setters ---
@@ -330,6 +370,12 @@ void PPGWaveVoice::setPortamento(float time, int mode)
 {
     portaTime = time;
     portaMode = mode;
+}
+
+void PPGWaveVoice::setUnisonParams(float detuneOffsetCents, float pan)
+{
+    unisonDetuneOffset = detuneOffsetCents;
+    stereoPan = pan;
 }
 
 } // namespace axelf::ppgwave

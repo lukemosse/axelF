@@ -1,6 +1,7 @@
 #include "DX7Processor.h"
 #include "DX7Voice.h"
 #include "DX7Editor.h"
+#include <cmath>
 
 namespace axelf::dx7
 {
@@ -60,6 +61,15 @@ void DX7Processor::processBlock(juce::AudioBuffer<float>& buffer,
             dcY[ch] = x - dcX[ch] + dcR * dcY[ch];
             dcX[ch] = x;
             data[i] = dcY[ch];
+
+            // Sanitise — clamp NaN/Inf to zero to prevent corruption
+            // propagating through the master mixer and effects chains
+            if (!std::isfinite(data[i]))
+            {
+                data[i] = 0.0f;
+                dcY[ch] = 0.0f;
+                dcX[ch] = 0.0f;
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 #include "Jupiter8Processor.h"
 #include "Jupiter8Voice.h"
 #include "Jupiter8Editor.h"
+#include <algorithm>
 
 namespace axelf::jupiter8
 {
@@ -10,7 +11,11 @@ Jupiter8Processor::Jupiter8Processor()
 {
     // Add 8 voices for polyphonic mode
     for (int i = 0; i < 8; ++i)
-        synth.addVoice(new Jupiter8Voice());
+    {
+        auto* voice = new Jupiter8Voice();
+        voice->setVoiceIndex(i);
+        synth.addVoice(voice);
+    }
 
     synth.addSound(new Jupiter8Sound());
 }
@@ -46,7 +51,11 @@ void Jupiter8Processor::processBlock(juce::AudioBuffer<float>& buffer,
         arpeggiator.setEnabled(arpOn);
         arpeggiator.setMode(static_cast<ArpMode>(arpMode));
         arpeggiator.setOctaveRange(arpRange);
-        arpeggiator.setRate(0.25); // 1/16th note
+
+        // Map arp rate choice to beats-per-step: 1/32=0.125, 1/16=0.25, 1/8=0.5, 1/4=1.0
+        static constexpr double arpRateTable[] = { 0.125, 0.25, 0.5, 1.0 };
+        int arpRateIdx = std::clamp(static_cast<int>(safeLoad("jup8_arp_rate")), 0, 3);
+        arpeggiator.setRate(arpRateTable[arpRateIdx]);
     }
 
     // Process arpeggiator: transform MIDI if enabled
@@ -55,6 +64,103 @@ void Jupiter8Processor::processBlock(juce::AudioBuffer<float>& buffer,
     arpeggiator.process(midiMessages, arpMidi, blockStartBeat,
                         buffer.getNumSamples(), beatsPerSample);
 
+    // Voice mode MIDI transformation
+    juce::MidiBuffer voiceMidi;
+    if (currentVoiceMode == 1) // Unison — duplicate each note-on 8 times
+    {
+        for (const auto metadata : arpMidi)
+        {
+            auto msg = metadata.getMessage();
+            if (msg.isNoteOn())
+            {
+                for (int v = 0; v < 8; ++v)
+                    voiceMidi.addEvent(msg, metadata.samplePosition);
+            }
+            else
+            {
+                voiceMidi.addEvent(msg, metadata.samplePosition);
+            }
+        }
+    }
+    else if (currentVoiceMode >= 2) // Solo modes
+    {
+        for (const auto metadata : arpMidi)
+        {
+            auto msg = metadata.getMessage();
+            int pos = metadata.samplePosition;
+            if (msg.isNoteOn())
+            {
+                int note = msg.getNoteNumber();
+                float vel = msg.getFloatVelocity();
+                soloHeldNotes.push_back(note);
+                soloHeldVelocities.push_back(vel);
+
+                int winner = note;
+                float winVel = vel;
+                if (currentVoiceMode == 3) // Solo Low
+                {
+                    for (size_t i = 0; i < soloHeldNotes.size(); ++i)
+                        if (soloHeldNotes[i] < winner) { winner = soloHeldNotes[i]; winVel = soloHeldVelocities[i]; }
+                }
+                else if (currentVoiceMode == 4) // Solo High
+                {
+                    for (size_t i = 0; i < soloHeldNotes.size(); ++i)
+                        if (soloHeldNotes[i] > winner) { winner = soloHeldNotes[i]; winVel = soloHeldVelocities[i]; }
+                }
+                // Solo Last: winner is already the new note
+
+                if (lastSoloNote >= 0 && lastSoloNote != winner)
+                    voiceMidi.addEvent(juce::MidiMessage::noteOff(1, lastSoloNote), pos);
+                voiceMidi.addEvent(juce::MidiMessage::noteOn(1, winner, winVel), pos);
+                lastSoloNote = winner;
+            }
+            else if (msg.isNoteOff())
+            {
+                int note = msg.getNoteNumber();
+                for (auto it = soloHeldNotes.begin(); it != soloHeldNotes.end(); ++it)
+                {
+                    if (*it == note)
+                    {
+                        auto idx = std::distance(soloHeldNotes.begin(), it);
+                        soloHeldNotes.erase(it);
+                        soloHeldVelocities.erase(soloHeldVelocities.begin() + idx);
+                        break;
+                    }
+                }
+
+                if (soloHeldNotes.empty())
+                {
+                    voiceMidi.addEvent(juce::MidiMessage::noteOff(1, lastSoloNote), pos);
+                    lastSoloNote = -1;
+                }
+                else if (note == lastSoloNote)
+                {
+                    // Retrigger the new winner
+                    int winner = soloHeldNotes.back();
+                    float winVel = soloHeldVelocities.back();
+                    if (currentVoiceMode == 3) // Solo Low
+                        for (size_t i = 0; i < soloHeldNotes.size(); ++i)
+                            if (soloHeldNotes[i] < winner) { winner = soloHeldNotes[i]; winVel = soloHeldVelocities[i]; }
+                    if (currentVoiceMode == 4) // Solo High
+                        for (size_t i = 0; i < soloHeldNotes.size(); ++i)
+                            if (soloHeldNotes[i] > winner) { winner = soloHeldNotes[i]; winVel = soloHeldVelocities[i]; }
+
+                    voiceMidi.addEvent(juce::MidiMessage::noteOff(1, lastSoloNote), pos);
+                    voiceMidi.addEvent(juce::MidiMessage::noteOn(1, winner, winVel), pos);
+                    lastSoloNote = winner;
+                }
+            }
+            else
+            {
+                voiceMidi.addEvent(msg, pos);
+            }
+        }
+    }
+    else // Poly — pass through
+    {
+        voiceMidi = arpMidi;
+    }
+
     juce::dsp::AudioBlock<float> block(buffer);
     auto oversampledBlock = oversampler.processSamplesUp(block);
 
@@ -62,7 +168,7 @@ void Jupiter8Processor::processBlock(juce::AudioBuffer<float>& buffer,
                           oversampledBlock.getChannelPointer(1) };
     juce::AudioBuffer<float> osBuffer(channels, 2,
                                        static_cast<int>(oversampledBlock.getNumSamples()));
-    synth.renderNextBlock(osBuffer, arpMidi, 0, static_cast<int>(oversampledBlock.getNumSamples()));
+    synth.renderNextBlock(osBuffer, voiceMidi, 0, static_cast<int>(oversampledBlock.getNumSamples()));
 
     oversampler.processSamplesDown(block);
 }
@@ -120,11 +226,20 @@ void Jupiter8Processor::updateVoiceParameters()
     float crossModDepth = safeLoad("jup8_dco_cross_mod", 0.0f);
     int   dcoSync       = static_cast<int>(safeLoad("jup8_dco_sync", 0.0f));
     int   voiceMode     = static_cast<int>(safeLoad("jup8_voice_mode", 0.0f));
+    int   hpfMode       = static_cast<int>(safeLoad("jup8_vcf_hpf", 0.0f));
+
+    currentVoiceMode = voiceMode;
 
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
         if (auto* voice = dynamic_cast<Jupiter8Voice*>(synth.getVoice(i)))
         {
+            // In Unison mode, spread detune ±25 cents across 8 voices
+            float unisonDetune = 0.0f;
+            if (voiceMode == 1)
+                unisonDetune = (static_cast<float>(i) - 3.5f) * (50.0f / 7.0f); // ±25 cents
+
+            voice->setUnisonDetune(unisonDetune);
             voice->setParameters(dco1Wave, dco1Range,
                                  dco2Wave, dco2Range, dco2Detune,
                                  mixDco1, mixDco2,
@@ -135,7 +250,7 @@ void Jupiter8Processor::updateVoiceParameters()
                                  pulseWidth, subLevel, noiseLevel,
                                  vcfKeyTrack, vcfLfoAmount, lfoDelay,
                                  portamento, crossModDepth, dcoSync,
-                                 voiceMode);
+                                 voiceMode, hpfMode);
         }
     }
 }

@@ -28,6 +28,9 @@ void DX7Voice::startNote(int midiNoteNumber, float vel,
 
     lfo.setSampleRate(getSampleRate());
     samplesSinceNoteOn = 0;
+    lastFeedbackSample = 0.0f;
+    prevFeedbackSample = 0.0f;
+    antiClickCounter = 0;
 
     for (auto& op : operators)
     {
@@ -70,24 +73,28 @@ void DX7Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
 {
     for (int sample = 0; sample < numSamples; ++sample)
     {
-        // Check if any operator is still active
-        bool anyActive = false;
-        for (const auto& op : operators)
+        // Check if any CARRIER operator is still active.
+        // Modulators with non-zero L4 can linger in Rate4 indefinitely,
+        // but they produce no audible output on their own — only carriers do.
+        // Keeping the voice alive for silent modulators causes voice pile-up
+        // (all 16 slots occupied by zombie voices), leading to CPU overload
+        // and audible glitches when combined with other modules.
+        const auto& topo = algorithm.getTopology();
+        bool anyCarrierActive = false;
+        for (int i = 0; i < 6; ++i)
         {
-            if (op.isActive())
+            if ((topo.carrierMask & (1 << i)) && operators[static_cast<size_t>(i)].isActive())
             {
-                anyActive = true;
+                anyCarrierActive = true;
                 break;
             }
         }
 
-        if (!anyActive)
+        if (!anyCarrierActive)
         {
             clearCurrentNote();
             break;
         }
-
-        const auto& topo = algorithm.getTopology();
 
         // LFO modulation with delay fade-in
         float lfoVal = lfo.getNextSample();
@@ -151,6 +158,15 @@ void DX7Voice::renderNextBlock(juce::AudioBuffer<float>& buffer,
             output /= std::sqrt(static_cast<float>(carrierCount));
 
         output = softClip(output * ampMod);
+
+        // Anti-click fade-in over 32 samples
+        if (antiClickCounter >= 0 && antiClickCounter < 32)
+        {
+            output *= static_cast<float>(antiClickCounter) / 32.0f;
+            ++antiClickCounter;
+            if (antiClickCounter >= 32)
+                antiClickCounter = -1;
+        }
 
         int pos = startSample + sample;
         buffer.addSample(0, pos, output);

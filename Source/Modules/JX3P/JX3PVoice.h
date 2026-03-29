@@ -37,7 +37,8 @@ public:
                        float dco1Range, float mixDco1, float mixDco2,
                        float vcfLfoAmount, int vcfKeyTrack,
                        float lfoDelay, float crossModDepth, int dcoSync,
-                       float pulseWidth);
+                       float pulseWidth, float dco2PW,
+                       float noiseLevel, float portamento);
 
 private:
     JX3PDCO dco1, dco2;
@@ -69,6 +70,11 @@ private:
     float crossMod = 0.0f;
     bool  syncEnabled = false;
     float prevDco2Out = 0.0f;
+    float noiseLevel = 0.0f;
+    float portaRate = 0.0f;         // portamento time (seconds)
+    float portaFreq = 440.0f;       // current gliding freq
+    uint32_t noiseState = 98765;
+    int   antiClickCounter = -1;   // ≥0 = fade-in active (counts up to 32)
 
     // Parameter smoothing (Phase 8)
     juce::SmoothedValue<float> cutoffSmoothed;

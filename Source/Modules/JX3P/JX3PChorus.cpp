@@ -82,23 +82,33 @@ float JX3PChorus::readInterpolated(const std::vector<float>& buffer, float delay
     if (readPos < 0.0f)
         readPos += static_cast<float>(kMaxDelaySamples);
 
-    int idx0 = static_cast<int>(readPos);
+    int idx1 = static_cast<int>(readPos);
     
     // Safety guard against NaN or wild values
-    if (idx0 < 0 || idx0 >= kMaxDelaySamples) idx0 = 0;
-    
-    int idx1 = (idx0 + 1) % kMaxDelaySamples;
-    float frac = readPos - static_cast<float>(idx0);
+    if (idx1 < 0 || idx1 >= kMaxDelaySamples) idx1 = 0;
 
-    // Final bounds check before accessing vectors
-    idx0 = std::clamp(idx0, 0, kMaxDelaySamples - 1);
-    idx1 = std::clamp(idx1, 0, kMaxDelaySamples - 1);
+    int idx0 = (idx1 - 1 + kMaxDelaySamples) % kMaxDelaySamples;
+    int idx2 = (idx1 + 1) % kMaxDelaySamples;
+    int idx3 = (idx1 + 2) % kMaxDelaySamples;
+    float frac = readPos - static_cast<float>(idx1);
 
-    if (buffer.size() <= static_cast<size_t>(idx0) || buffer.size() <= static_cast<size_t>(idx1))
-        return 0.0f; // Absolute safety against out-of-bounds
+    // Bounds check
+    auto sz = static_cast<int>(buffer.size());
+    if (sz <= idx0 || sz <= idx1 || sz <= idx2 || sz <= idx3)
+        return 0.0f;
 
-    return buffer[static_cast<size_t>(idx0)] * (1.0f - frac)
-         + buffer[static_cast<size_t>(idx1)] * frac;
+    // Hermite (cubic) interpolation for smoother chorus modulation
+    float y0 = buffer[static_cast<size_t>(idx0)];
+    float y1 = buffer[static_cast<size_t>(idx1)];
+    float y2 = buffer[static_cast<size_t>(idx2)];
+    float y3 = buffer[static_cast<size_t>(idx3)];
+
+    float c0 = y1;
+    float c1 = 0.5f * (y2 - y0);
+    float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+    float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+
+    return ((c3 * frac + c2) * frac + c1) * frac + c0;
 }
 
 } // namespace axelf::jx3p

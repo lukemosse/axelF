@@ -45,6 +45,7 @@ public:
                 float pitchAmt, float cutoffAmt, float ampAmt, bool sync);
     void setBendRange(float semitones);
     void setPortamento(float time, int portaMode);
+    void setUnisonParams(float detuneOffsetCents, float pan);
 
 private:
     // Two wavetable oscillators
@@ -60,7 +61,10 @@ private:
     // Noise generator
     float noiseLevel = 0.0f;
     float noiseColor = 0.5f;  // 0=dark(filtered), 1=bright(white)
-    float noiseLPState = 0.0f;
+
+    // Paul Kellet pink noise filter state
+    float pinkB0 = 0.0f, pinkB1 = 0.0f, pinkB2 = 0.0f;
+    float pinkB3 = 0.0f, pinkB4 = 0.0f, pinkB5 = 0.0f;
 
     // Mixer levels
     float mixA = 1.0f, mixB = 0.0f, mixSub = 0.0f, mixNoise = 0.0f, mixRing = 0.0f;
@@ -116,6 +120,15 @@ private:
     bool voiceWasStolen = false;
     float antiClickGain = 1.0f;
 
+    // Stereo pan for unison spread (0=left, 0.5=center, 1=right)
+    float stereoPan = 0.5f;
+
+    // Unison detune offset in cents (set per-voice by processor)
+    float unisonDetuneOffset = 0.0f;
+
+    // Previous filter input for 2× oversampling
+    float prevFilterInput = 0.0f;
+
     // Wave position smoothing (slew-rate limited)
     float smoothWavePosA = 0.0f;
     float smoothWavePosB = 0.0f;
@@ -129,6 +142,7 @@ private:
 
     float generateSubSample();
     float generateNoise();
+    float polyBLEP(double t, double dt);
 };
 
 } // namespace axelf::ppgwave

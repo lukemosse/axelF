@@ -4,6 +4,7 @@
 #include "Common/EffectsParams.h"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace axelf
 {
@@ -443,11 +444,18 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // ── 6c. Final safety clip — prevent any residual overs ───
+    // Note: std::clamp does not catch NaN (NaN comparisons are false),
+    // so we explicitly zero non-finite samples first.
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
         auto* data = buffer.getWritePointer(ch);
         for (int s = 0; s < buffer.getNumSamples(); ++s)
-            data[s] = std::clamp(data[s], -1.0f, 1.0f);
+        {
+            if (!std::isfinite(data[s]))
+                data[s] = 0.0f;
+            else
+                data[s] = std::clamp(data[s], -1.0f, 1.0f);
+        }
     }
 
     // ── 6c. Render metronome click (count-in + normal playback)

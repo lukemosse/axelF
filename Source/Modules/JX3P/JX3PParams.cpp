@@ -143,6 +143,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         juce::ParameterID{ "jx3p_chorus_spread", 1 }, "Chorus Spread",
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
 
+    // Pulse Width (DCO-1)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ "jx3p_pulse_width", 1 }, "DCO-1 Pulse Width",
+        juce::NormalisableRange<float>(0.05f, 0.95f, 0.01f), 0.5f));
+
+    // Pulse Width (DCO-2)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ "jx3p_dco2_pw", 1 }, "DCO-2 Pulse Width",
+        juce::NormalisableRange<float>(0.05f, 0.95f, 0.01f), 0.5f));
+
+    // Noise Level
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ "jx3p_noise_level", 1 }, "Noise Level",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    // Portamento
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ "jx3p_portamento", 1 }, "Portamento Time",
+        juce::NormalisableRange<float>(0.0f, 2.0f, 0.001f), 0.0f));
+
     return { params.begin(), params.end() };
 }
 

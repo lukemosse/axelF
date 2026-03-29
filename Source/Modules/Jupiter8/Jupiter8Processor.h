@@ -5,6 +5,7 @@
 #include "Jupiter8Arpeggiator.h"
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <vector>
 
 namespace axelf::jupiter8
 {
@@ -55,6 +56,12 @@ private:
     juce::AudioProcessorValueTreeState apvts;
     juce::Synthesiser synth;
     Jupiter8Arpeggiator arpeggiator;
+
+    // Voice mode tracking
+    int currentVoiceMode = 0;  // 0=Poly, 1=Unison, 2=Solo Last, 3=Solo Low, 4=Solo High
+    std::vector<int> soloHeldNotes;
+    std::vector<float> soloHeldVelocities;
+    int lastSoloNote = -1;
 
     // Transport info set by PluginProcessor before processBlock
     double blockStartBeat = 0.0;
