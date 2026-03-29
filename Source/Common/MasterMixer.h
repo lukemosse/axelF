@@ -23,6 +23,8 @@ namespace MixerParamIDs
     inline juce::String send3ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send3"; }
     inline juce::String send4ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send4"; }
     inline juce::String send5ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send5"; }
+    inline juce::String send6ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send6"; }
+    inline juce::String send7ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send7"; }
     inline juce::String tiltID  (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_tilt"; }
 
     static constexpr const char* kMasterLevel = "mix_master_level";
@@ -58,6 +60,17 @@ public:
                   juce::AudioBuffer<float>& aux4Out,
                   juce::AudioBuffer<float>& aux5Out);
 
+    /** Extended process with 7 aux send taps (5 built-in + 2 insert sends). */
+    void process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
+                  juce::AudioBuffer<float>& mainOut,
+                  juce::AudioBuffer<float>& aux1Out,
+                  juce::AudioBuffer<float>& aux2Out,
+                  juce::AudioBuffer<float>& aux3Out,
+                  juce::AudioBuffer<float>& aux4Out,
+                  juce::AudioBuffer<float>& aux5Out,
+                  juce::AudioBuffer<float>& aux6Out,
+                  juce::AudioBuffer<float>& aux7Out);
+
     // Peak metering (written by audio thread, read by UI timer)
     float getPeakLevel (int index) const
     {
@@ -74,6 +87,8 @@ public:
     float getSend3 (int ch) const;
     float getSend4 (int ch) const;
     float getSend5 (int ch) const;
+    float getSend6 (int ch) const;
+    float getSend7 (int ch) const;
     float getTilt  (int ch) const;
     float getMasterLevel() const;
 
@@ -93,6 +108,8 @@ public:
     void setSend3 (int ch, float v);
     void setSend4 (int ch, float v);
     void setSend5 (int ch, float v);
+    void setSend6 (int ch, float v);
+    void setSend7 (int ch, float v);
     void setTilt  (int ch, float v);
     void setMasterLevel (float v);
 
@@ -110,6 +127,8 @@ private:
         std::atomic<float>* send3 = nullptr;
         std::atomic<float>* send4 = nullptr;
         std::atomic<float>* send5 = nullptr;
+        std::atomic<float>* send6 = nullptr;
+        std::atomic<float>* send7 = nullptr;
         std::atomic<float>* tilt  = nullptr;
         std::atomic<float>  peakLevel { 0.0f };
     };

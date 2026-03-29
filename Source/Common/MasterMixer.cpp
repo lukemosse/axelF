@@ -57,6 +57,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createMixerParameterLayout()
             juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
 
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { MixerParamIDs::send6ID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " Send 6",
+            juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { MixerParamIDs::send7ID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " Send 7",
+            juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { MixerParamIDs::tiltID (i), 1 },
             juce::String (MixerParamIDs::kPrefixes[i]) + " Tilt EQ",
             juce::NormalisableRange<float> (-1.0f, 1.0f, 0.01f), 0.0f));
@@ -86,6 +96,8 @@ void MasterMixer::bindToAPVTS (juce::AudioProcessorValueTreeState& apvts)
         channels[static_cast<size_t> (i)].send3 = apvts.getRawParameterValue (MixerParamIDs::send3ID (i));
         channels[static_cast<size_t> (i)].send4 = apvts.getRawParameterValue (MixerParamIDs::send4ID (i));
         channels[static_cast<size_t> (i)].send5 = apvts.getRawParameterValue (MixerParamIDs::send5ID (i));
+        channels[static_cast<size_t> (i)].send6 = apvts.getRawParameterValue (MixerParamIDs::send6ID (i));
+        channels[static_cast<size_t> (i)].send7 = apvts.getRawParameterValue (MixerParamIDs::send7ID (i));
         channels[static_cast<size_t> (i)].tilt  = apvts.getRawParameterValue (MixerParamIDs::tiltID (i));
     }
 
@@ -480,6 +492,132 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
     }
 }
 
+// ── Extended process with 7 aux send taps ────────────────────
+void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& moduleOutputs,
+                           juce::AudioBuffer<float>& mainOut,
+                           juce::AudioBuffer<float>& aux1Out,
+                           juce::AudioBuffer<float>& aux2Out,
+                           juce::AudioBuffer<float>& aux3Out,
+                           juce::AudioBuffer<float>& aux4Out,
+                           juce::AudioBuffer<float>& aux5Out,
+                           juce::AudioBuffer<float>& aux6Out,
+                           juce::AudioBuffer<float>& aux7Out)
+{
+    mainOut.clear();
+    aux1Out.clear();
+    aux2Out.clear();
+    aux3Out.clear();
+    aux4Out.clear();
+    aux5Out.clear();
+    aux6Out.clear();
+    aux7Out.clear();
+
+    bool anySolo = false;
+    for (const auto& ch : channels)
+        if (ch.solo && ch.solo->load (std::memory_order_relaxed) >= 0.5f)
+        { anySolo = true; break; }
+
+    const float master = masterLevelPtr ? masterLevelPtr->load (std::memory_order_relaxed) : 1.0f;
+    if (prepared) masterSmoothed.setTargetValue (master);
+
+    for (size_t i = 0; i < 6; ++i)
+    {
+        auto& ch  = channels[i];
+        const auto& src = *moduleOutputs[i];
+
+        const float level = ch.level ? ch.level->load (std::memory_order_relaxed) : 1.0f;
+        const float pan   = ch.pan   ? ch.pan->load (std::memory_order_relaxed)   : 0.0f;
+        const bool  muted = ch.mute  ? ch.mute->load (std::memory_order_relaxed) >= 0.5f : false;
+        const bool  solo  = ch.solo  ? ch.solo->load (std::memory_order_relaxed) >= 0.5f : false;
+        const float s1    = ch.send1 ? ch.send1->load (std::memory_order_relaxed) : 0.0f;
+        const float s2    = ch.send2 ? ch.send2->load (std::memory_order_relaxed) : 0.0f;
+        const float s3    = ch.send3 ? ch.send3->load (std::memory_order_relaxed) : 0.0f;
+        const float s4    = ch.send4 ? ch.send4->load (std::memory_order_relaxed) : 0.0f;
+        const float s5    = ch.send5 ? ch.send5->load (std::memory_order_relaxed) : 0.0f;
+        const float s6    = ch.send6 ? ch.send6->load (std::memory_order_relaxed) : 0.0f;
+        const float s7    = ch.send7 ? ch.send7->load (std::memory_order_relaxed) : 0.0f;
+        const float tilt  = ch.tilt  ? ch.tilt->load (std::memory_order_relaxed)  : 0.0f;
+
+        if (prepared)
+        {
+            levelSmoothed[i].setTargetValue (level);
+            panSmoothed[i].setTargetValue (pan);
+        }
+
+        float peak = 0.0f;
+        for (int c = 0; c < src.getNumChannels(); ++c)
+            peak = std::max (peak, src.getMagnitude (c, 0, mainOut.getNumSamples()));
+        ch.peakLevel.store (peak * level, std::memory_order_relaxed);
+
+        if (muted) continue;
+        if (anySolo && !solo) continue;
+        if (src.getNumChannels() < 2 || mainOut.getNumChannels() < 2) continue;
+
+        const int numSamples = mainOut.getNumSamples();
+        const bool hasTilt7 = std::abs (tilt) > 0.001f;
+
+        if (hasTilt7)
+        {
+            const auto* srcL = src.getReadPointer (0);
+            const auto* srcR = src.getReadPointer (1);
+            auto* outL = mainOut.getWritePointer (0);
+            auto* outR = mainOut.getWritePointer (1);
+            const float tL7 = 1.0f - tilt * 0.5f;
+            const float tH7 = 1.0f + tilt * 0.5f;
+
+            const float theta = (pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f;
+            const float gainL = level * master * std::cos (theta);
+            const float gainR = level * master * std::sin (theta);
+
+            for (int s = 0; s < numSamples; ++s)
+            {
+                float inL = srcL[s];
+                float inR = srcR[s];
+                tiltLpStateL[i] += tiltCoeff * (inL - tiltLpStateL[i]);
+                tiltLpStateR[i] += tiltCoeff * (inR - tiltLpStateR[i]);
+                inL = tiltLpStateL[i] * tL7 + (inL - tiltLpStateL[i]) * tH7;
+                inR = tiltLpStateR[i] * tL7 + (inR - tiltLpStateR[i]) * tH7;
+
+                outL[s] += inL * gainL;
+                outR[s] += inR * gainR;
+
+                if (s1 > 0.001f) { aux1Out.getWritePointer(0)[s] += inL * gainL * s1; aux1Out.getWritePointer(1)[s] += inR * gainR * s1; }
+                if (s2 > 0.001f) { aux2Out.getWritePointer(0)[s] += inL * gainL * s2; aux2Out.getWritePointer(1)[s] += inR * gainR * s2; }
+                if (s3 > 0.001f) { aux3Out.getWritePointer(0)[s] += inL * gainL * s3; aux3Out.getWritePointer(1)[s] += inR * gainR * s3; }
+                if (s4 > 0.001f) { aux4Out.getWritePointer(0)[s] += inL * gainL * s4; aux4Out.getWritePointer(1)[s] += inR * gainR * s4; }
+                if (s5 > 0.001f) { aux5Out.getWritePointer(0)[s] += inL * gainL * s5; aux5Out.getWritePointer(1)[s] += inR * gainR * s5; }
+                if (s6 > 0.001f) { aux6Out.getWritePointer(0)[s] += inL * gainL * s6; aux6Out.getWritePointer(1)[s] += inR * gainR * s6; }
+                if (s7 > 0.001f) { aux7Out.getWritePointer(0)[s] += inL * gainL * s7; aux7Out.getWritePointer(1)[s] += inR * gainR * s7; }
+            }
+        }
+        else
+        {
+            const float theta = (pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f;
+            const float gainL = level * master * std::cos (theta);
+            const float gainR = level * master * std::sin (theta);
+
+            mainOut.addFrom (0, 0, src, 0, 0, numSamples, gainL);
+            mainOut.addFrom (1, 0, src, 1, 0, numSamples, gainR);
+
+            if (s1 > 0.001f) { aux1Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s1); aux1Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s1); }
+            if (s2 > 0.001f) { aux2Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s2); aux2Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s2); }
+            if (s3 > 0.001f) { aux3Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s3); aux3Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s3); }
+            if (s4 > 0.001f) { aux4Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s4); aux4Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s4); }
+            if (s5 > 0.001f) { aux5Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s5); aux5Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s5); }
+            if (s6 > 0.001f) { aux6Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s6); aux6Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s6); }
+            if (s7 > 0.001f) { aux7Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s7); aux7Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s7); }
+        }
+    }
+
+    // Master output peak
+    {
+        float mPeak = 0.0f;
+        for (int c = 0; c < mainOut.getNumChannels(); ++c)
+            mPeak = std::max (mPeak, mainOut.getMagnitude (c, 0, mainOut.getNumSamples()));
+        masterPeakLevel.store (mPeak, std::memory_order_relaxed);
+    }
+}
+
 // ── Thread-safe read accessors ───────────────────────────────
 float MasterMixer::getLevel (int ch) const
 {
@@ -532,6 +670,18 @@ float MasterMixer::getSend4 (int ch) const
 float MasterMixer::getSend5 (int ch) const
 {
     auto* p = channels[static_cast<size_t> (ch)].send5;
+    return p ? p->load (std::memory_order_relaxed) : 0.0f;
+}
+
+float MasterMixer::getSend6 (int ch) const
+{
+    auto* p = channels[static_cast<size_t> (ch)].send6;
+    return p ? p->load (std::memory_order_relaxed) : 0.0f;
+}
+
+float MasterMixer::getSend7 (int ch) const
+{
+    auto* p = channels[static_cast<size_t> (ch)].send7;
     return p ? p->load (std::memory_order_relaxed) : 0.0f;
 }
 
@@ -607,6 +757,20 @@ void MasterMixer::setSend5 (int ch, float v)
 {
     if (boundAPVTS)
         if (auto* param = boundAPVTS->getParameter (MixerParamIDs::send5ID (ch)))
+            param->setValueNotifyingHost (param->convertTo0to1 (v));
+}
+
+void MasterMixer::setSend6 (int ch, float v)
+{
+    if (boundAPVTS)
+        if (auto* param = boundAPVTS->getParameter (MixerParamIDs::send6ID (ch)))
+            param->setValueNotifyingHost (param->convertTo0to1 (v));
+}
+
+void MasterMixer::setSend7 (int ch, float v)
+{
+    if (boundAPVTS)
+        if (auto* param = boundAPVTS->getParameter (MixerParamIDs::send7ID (ch)))
             param->setValueNotifyingHost (param->convertTo0to1 (v));
 }
 

@@ -66,16 +66,23 @@ void AxelFProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     distortion.prepare(sampleRate, samplesPerBlock);
     masterBus.prepare(sampleRate, samplesPerBlock);
 
+    // Prepare external insert slots
+    for (auto& slot : insertSlots)
+        slot.prepare(sampleRate, samplesPerBlock);
+
     metronome.prepare(sampleRate);
 
     // Prepare mixer smoothing
     mixer.prepare(sampleRate);
 
     // Report total latency — max across all oversampled modules
+    // Insert slots are now parallel sends, so take max rather than sum
     int maxLatency = std::max({ jupiter8.getLatencyInSamples(),
                                 moog15.getLatencyInSamples(),
                                 jx3p.getLatencyInSamples(),
                                 dx7.getLatencyInSamples() });
+    for (auto& slot : insertSlots)
+        maxLatency = std::max(maxLatency, slot.getLatencySamples());
     setLatencySamples(maxLatency);
 
     // Wire metronome click to transport beat callback
@@ -362,7 +369,9 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     aux3Buffer.setSize(2, numSamples, false, false, true);
     aux4Buffer.setSize(2, numSamples, false, false, true);
     aux5Buffer.setSize(2, numSamples, false, false, true);
-    mixer.process(moduleBuffers, buffer, aux1Buffer, aux2Buffer, aux3Buffer, aux4Buffer, aux5Buffer);
+    ins1Buffer.setSize(2, numSamples, false, false, true);
+    ins2Buffer.setSize(2, numSamples, false, false, true);
+    mixer.process(moduleBuffers, buffer, aux1Buffer, aux2Buffer, aux3Buffer, aux4Buffer, aux5Buffer, ins1Buffer, ins2Buffer);
 
     // ── 6a. Process send effects ─────────────────────────────
     {
@@ -422,6 +431,15 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             buffer.addFrom(ch, 0, aux4Buffer, ch, 0, numSamples, 0.7f);   // Flanger
             buffer.addFrom(ch, 0, aux5Buffer, ch, 0, numSamples, 0.7f);   // Distortion
         }
+    }
+
+    // ── 6a-ii. Insert send effects (external VST3 plugins) ──
+    insertSlots[0].process(ins1Buffer);
+    insertSlots[1].process(ins2Buffer);
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        buffer.addFrom(ch, 0, ins1Buffer, ch, 0, numSamples, 0.7f);   // Insert 1 return
+        buffer.addFrom(ch, 0, ins2Buffer, ch, 0, numSamples, 0.7f);   // Insert 2 return
     }
 
     // ── 6b. Master bus processing (EQ → Comp → Limiter) ─────
@@ -504,6 +522,13 @@ void AxelFProcessor::getStateInformation(juce::MemoryBlock& destData)
     if (auto mlXml = midiLearn.toXml())
         root->addChildElement(mlXml.release());
 
+    // External insert slots
+    for (int i = 0; i < 2; ++i)
+    {
+        if (auto slotXml = insertSlots[static_cast<size_t>(i)].toXml("Insert" + juce::String(i + 1)))
+            root->addChildElement(slotXml.release());
+    }
+
     // Session data (patterns, scenes, transport, arrangement)
     {
         auto* session = root->createNewChildElement("Session");
@@ -554,6 +579,14 @@ void AxelFProcessor::setStateInformation(const void* data, int sizeInBytes)
     // MIDI Learn mappings
     if (auto* mlXml = root->getChildByName("MidiLearn"))
         midiLearn.fromXml(*mlXml);
+
+    // External insert slots
+    for (int i = 0; i < 2; ++i)
+    {
+        auto tag = "Insert" + juce::String(i + 1);
+        if (auto* slotXml = root->getChildByName(tag))
+            insertSlots[static_cast<size_t>(i)].fromXml(*slotXml);
+    }
 
     // Session data (patterns, scenes, transport, arrangement)
     if (auto* session = root->getChildByName("Session"))

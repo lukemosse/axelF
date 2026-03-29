@@ -4,6 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "AxelFColours.h"
 #include "../Common/MasterMixer.h"
+#include "../Common/ExternalPluginSlot.h"
 
 namespace axelf::ui
 {
@@ -17,8 +18,11 @@ class MixerSidePanel : public juce::Component, private juce::Timer
 public:
     MixerSidePanel (MasterMixer& mix,
                     juce::AudioProcessorValueTreeState& mixApvts,
-                    juce::AudioProcessorValueTreeState& fxApvts)
-        : mixer (mix), mixerAPVTS (mixApvts), effectsAPVTS (fxApvts)
+                    juce::AudioProcessorValueTreeState& fxApvts,
+                    ExternalPluginSlot* slot0 = nullptr,
+                    ExternalPluginSlot* slot1 = nullptr)
+        : mixer (mix), mixerAPVTS (mixApvts), effectsAPVTS (fxApvts),
+          insertSlot { slot0, slot1 }
     {
         startTimerHz (30);
 
@@ -116,6 +120,26 @@ public:
 
             s.send5Attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 mixApvts, MixerParamIDs::send5ID (i), s.send5Knob);
+
+            // Send 6 knob (insert 1)
+            s.send6Knob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+            s.send6Knob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+            s.send6Knob.setRange (0.0, 1.0, 0.01);
+            s.send6Knob.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xFF44ccaa));
+            addAndMakeVisible (s.send6Knob);
+
+            s.send6Attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                mixApvts, MixerParamIDs::send6ID (i), s.send6Knob);
+
+            // Send 7 knob (insert 2)
+            s.send7Knob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+            s.send7Knob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+            s.send7Knob.setRange (0.0, 1.0, 0.01);
+            s.send7Knob.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xFFcc77aa));
+            addAndMakeVisible (s.send7Knob);
+
+            s.send7Attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                mixApvts, MixerParamIDs::send7ID (i), s.send7Knob);
 
             // Mute / Solo buttons
             s.muteBtn.setButtonText ("M");
@@ -241,6 +265,48 @@ public:
 
         distDriveAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_distortion_drive", distDrive);
         distToneAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_distortion_tone",  distTone);
+
+        // ── External insert slot buttons ─────────────────────
+        for (int i = 0; i < 2; ++i)
+        {
+            auto& ins = insUI[i];
+            ins.loadBtn.setButtonText ("Load");
+            ins.loadBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF1a2530));
+            ins.loadBtn.setColour (juce::TextButton::textColourOffId, juce::Colour (Colours::textLabel));
+            addAndMakeVisible (ins.loadBtn);
+
+            ins.bypassBtn.setButtonText ("BYP");
+            ins.bypassBtn.setClickingTogglesState (true);
+            ins.bypassBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (Colours::accentOrange));
+            ins.bypassBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (Colours::bgControl));
+            ins.bypassBtn.setColour (juce::TextButton::textColourOffId, juce::Colour (Colours::textSecondary));
+            ins.bypassBtn.setColour (juce::TextButton::textColourOnId, juce::Colour (Colours::textPrimary));
+            addAndMakeVisible (ins.bypassBtn);
+
+            ins.editBtn.setButtonText ("Edit");
+            ins.editBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF1a2530));
+            ins.editBtn.setColour (juce::TextButton::textColourOffId, juce::Colour (Colours::textLabel));
+            addAndMakeVisible (ins.editBtn);
+
+            ins.nameLabel.setJustificationType (juce::Justification::centred);
+            ins.nameLabel.setColour (juce::Label::textColourId, juce::Colour (Colours::textPrimary));
+            ins.nameLabel.setFont (juce::Font (juce::FontOptions (8.0f)));
+            ins.nameLabel.setText ("Empty", juce::dontSendNotification);
+            addAndMakeVisible (ins.nameLabel);
+
+            const int slotIdx = i;
+            ins.loadBtn.onClick = [this, slotIdx]() { loadPluginForSlot (slotIdx); };
+            ins.editBtn.onClick = [this, slotIdx]()
+            {
+                if (insertSlot[slotIdx] != nullptr)
+                    insertSlot[slotIdx]->showEditor();
+            };
+            ins.bypassBtn.onClick = [this, slotIdx]()
+            {
+                if (insertSlot[slotIdx] != nullptr)
+                    insertSlot[slotIdx]->setBypassed (insUI[slotIdx].bypassBtn.getToggleState());
+            };
+        }
     }
 
     // Two-param constructor for backward compatibility — immediately delegates
@@ -311,9 +377,9 @@ public:
 
             // Send labels (single column, drawn next to each send knob)
             g.setFont (juce::Font(juce::FontOptions(7.0f)));
-            static const char* sendNames[] = { "RVB", "DLY", "CHR", "FLG", "DST" };
-            static const juce::uint32 sendCols[] = { 0xFF5b8bcc, 0xFFcc8b5b, 0xFF66bbaa, 0xFFbb66cc, 0xFFcc6655 };
-            for (int s = 0; s < 5; ++s)
+            static const char* sendNames[] = { "RVB", "DLY", "CHR", "FLG", "DST", "IN1", "IN2" };
+            static const juce::uint32 sendCols[] = { 0xFF5b8bcc, 0xFFcc8b5b, 0xFF66bbaa, 0xFFbb66cc, 0xFFcc6655, 0xFF44ccaa, 0xFFcc77aa };
+            for (int s = 0; s < 7; ++s)
             {
                 int sy = sendKnobYs_[i][s];
                 g.setColour (juce::Colour (sendCols[s]).withAlpha (0.7f));
@@ -392,6 +458,20 @@ public:
             lbl2 ("TONE",  fxKnobY_distTone);
         }
 
+        // ── Insert slot labels (below FX columns) ────────────
+        for (int i = 0; i < 2; ++i)
+        {
+            float fxX = (6.0f + i) * stripW;
+            float fxLabelX = fxX + 2.0f;
+            float fxLabelW = stripW - 4.0f;
+            g.setFont (juce::Font (juce::FontOptions (7.0f, juce::Font::bold)));
+            g.setColour (juce::Colour (0xFF44ccaa).withAlpha (0.7f));
+            g.drawText (i == 0 ? "INS 1" : "INS 2",
+                        static_cast<int>(fxLabelX), insLabelY_[i],
+                        static_cast<int>(fxLabelW), 10,
+                        juce::Justification::centred, false);
+        }
+
         // ── Master strip (rightmost) ─────────────────────────
         float masterX = 8.0f * stripW;
         g.setColour (juce::Colour (0xFF152540));
@@ -462,7 +542,7 @@ public:
         sendKnobSize_ = std::min (stripW - 4, 28);
         sendLabelW_ = std::min (18, stripW / 3);
         int sendPitch = sendKnobSize_ + 2;
-        int sendsH = 5 * sendPitch + 4;  // total height for 5 single-column sends
+        int sendsH = 7 * sendPitch + 4;  // total height for 7 single-column sends
 
         sendAreaTop_ = static_cast<float>(area.getHeight() - sendsH);
 
@@ -497,8 +577,8 @@ public:
             // Send knobs — single column, stacked vertically
             int sendX = x + sendLabelW_ + 1;
             int sy = area.getHeight() - sendsH + 2;
-            juce::Slider* sendKnobs[] = { &s.send1Knob, &s.send2Knob, &s.send3Knob, &s.send4Knob, &s.send5Knob };
-            for (int sk = 0; sk < 5; ++sk)
+            juce::Slider* sendKnobs[] = { &s.send1Knob, &s.send2Knob, &s.send3Knob, &s.send4Knob, &s.send5Knob, &s.send6Knob, &s.send7Knob };
+            for (int sk = 0; sk < 7; ++sk)
             {
                 sendKnobYs_[i][sk] = sy;
                 sendKnobs[sk]->setBounds (sendX, sy, sendKnobSize_, sendKnobSize_);
@@ -533,6 +613,16 @@ public:
             chorusRate.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap;
             fxKnobY_chorusDepth = y;
             chorusDepth.setBounds (cx, y, fxKnobSize, fxKnobSize);
+            y += fxKnobSize + labelGap + 4;
+
+            // Insert 1 section — below chorus in FX-1 column
+            insLabelY_[0] = y; y += 14;
+            int btnW = stripW - 6;
+            int btnH = 18;
+            insUI[0].nameLabel.setBounds (x + 2, y, btnW, 12); y += 14;
+            insUI[0].loadBtn.setBounds   (x + 3, y, btnW, btnH); y += btnH + 2;
+            insUI[0].bypassBtn.setBounds (x + 3, y, btnW, btnH); y += btnH + 2;
+            insUI[0].editBtn.setBounds   (x + 3, y, btnW, btnH);
         }
 
         // ── FX column 2 (flanger, distortion): index 7 ──────
@@ -556,6 +646,16 @@ public:
             distDrive.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap;
             fxKnobY_distTone = y;
             distTone.setBounds (cx, y, fxKnobSize, fxKnobSize);
+            y += fxKnobSize + labelGap + 4;
+
+            // Insert 2 section — below distortion in FX-2 column
+            insLabelY_[1] = y; y += 14;
+            int btnW = stripW - 6;
+            int btnH = 18;
+            insUI[1].nameLabel.setBounds (x + 2, y, btnW, 12); y += 14;
+            insUI[1].loadBtn.setBounds   (x + 3, y, btnW, btnH); y += btnH + 2;
+            insUI[1].bypassBtn.setBounds (x + 3, y, btnW, btnH); y += btnH + 2;
+            insUI[1].editBtn.setBounds   (x + 3, y, btnW, btnH);
         }
 
         // ── Master strip (rightmost, index 8) ────────────
@@ -605,6 +705,7 @@ private:
         for (int i = 0; i < 6; ++i)
             strips[i].peakLevel = mixer.getPeakLevel (i);
         masterPeakLevel_ = mixer.getMasterPeakLevel();
+        updateInsertNames();
         repaint();
     }
 
@@ -627,6 +728,8 @@ private:
         juce::Slider   send3Knob;    // chorus send
         juce::Slider   send4Knob;    // flanger send
         juce::Slider   send5Knob;    // distortion send
+        juce::Slider   send6Knob;    // insert 1 send
+        juce::Slider   send7Knob;    // insert 2 send
         juce::TextButton muteBtn;
         juce::TextButton soloBtn;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
@@ -637,6 +740,8 @@ private:
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send3Attachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send4Attachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send5Attachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send6Attachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send7Attachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> muteAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> soloAttachment;
         float peakLevel = 0.0f;
@@ -685,7 +790,76 @@ private:
     float sendAreaTop_ = 400.0f;
     int sendKnobSize_ = 24;
     int sendLabelW_ = 16;
-    int sendKnobYs_[6][5] = {};
+    int sendKnobYs_[6][7] = {};
+
+    // ── External insert slot UI ──────────────────────────────
+    ExternalPluginSlot* insertSlot[2] = { nullptr, nullptr };
+    int insLabelY_[2] = { 0, 0 };
+
+    struct InsertUI
+    {
+        juce::Label      nameLabel;
+        juce::TextButton loadBtn;
+        juce::TextButton bypassBtn;
+        juce::TextButton editBtn;
+    };
+    InsertUI insUI[2];
+
+    void loadPluginForSlot (int slotIdx)
+    {
+        if (insertSlot[slotIdx] == nullptr)
+            return;
+
+        auto chooser = std::make_shared<juce::FileChooser> (
+            "Select a VST3 plugin",
+            juce::File::getSpecialLocation (juce::File::globalApplicationsDirectory),
+#if JUCE_WINDOWS
+            "*.vst3"
+#elif JUCE_MAC
+            "*.vst3;*.component"
+#else
+            "*.vst3;*.so"
+#endif
+        );
+
+        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            [this, slotIdx, chooser] (const juce::FileChooser& fc)
+            {
+                auto result = fc.getResult();
+                if (result == juce::File())
+                    return;
+
+                if (insertSlot[slotIdx]->loadPlugin (result))
+                {
+                    insUI[slotIdx].nameLabel.setText (
+                        insertSlot[slotIdx]->getPluginName(),
+                        juce::dontSendNotification);
+                }
+                else
+                {
+                    juce::AlertWindow::showMessageBoxAsync (
+                        juce::MessageBoxIconType::WarningIcon,
+                        "Plugin Load Failed",
+                        "Could not load " + result.getFileName());
+                }
+            });
+    }
+
+    void updateInsertNames()
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            if (insertSlot[i] != nullptr)
+            {
+                insUI[i].nameLabel.setText (
+                    insertSlot[i]->getPluginName(),
+                    juce::dontSendNotification);
+                insUI[i].bypassBtn.setToggleState (
+                    insertSlot[i]->isBypassed(),
+                    juce::dontSendNotification);
+            }
+        }
+    }
 };
 
 } // namespace axelf::ui

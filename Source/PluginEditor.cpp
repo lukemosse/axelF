@@ -131,7 +131,8 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
 
     // ── Mixer side panel (right side, ~1/4 width) ──────────────
     mixerPanel = std::make_unique<ui::MixerSidePanel>(
-        processorRef.getMixer(), processorRef.getMixerAPVTS(), processorRef.getEffectsAPVTS());
+        processorRef.getMixer(), processorRef.getMixerAPVTS(), processorRef.getEffectsAPVTS(),
+        &processorRef.getInsertSlot(0), &processorRef.getInsertSlot(1));
     addAndMakeVisible(*mixerPanel);
 
     // ── Timeline panel (replaces PatternBankBar + ArrangementView) ──

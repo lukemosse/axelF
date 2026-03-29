@@ -17,6 +17,7 @@
 #include "Common/DSP/StereoFlanger.h"
 #include "Common/DSP/Distortion.h"
 #include "Common/DSP/MasterBus.h"
+#include "Common/ExternalPluginSlot.h"
 #include <juce_core/juce_core.h>
 #include "Modules/Jupiter8/Jupiter8Processor.h"
 #include "Modules/Moog15/Moog15Processor.h"
@@ -74,6 +75,7 @@ public:
     ArrangementTimeline& getArrangement() { return arrangement; }
     ArrangementCapture& getArrangementCapture() { return arrangementCapture; }
     MidiLearn& getMidiLearn() { return midiLearn; }
+    ExternalPluginSlot& getInsertSlot (int index) { return insertSlots[static_cast<size_t>(index)]; }
 
     void setActiveModule(int index) { activeModuleIndex.store(index); }
     int getActiveModule() const { return activeModuleIndex.load(); }
@@ -145,6 +147,7 @@ private:
 
     // Aux send / return buffers
     juce::AudioBuffer<float> aux1Buffer, aux2Buffer, aux3Buffer, aux4Buffer, aux5Buffer;
+    juce::AudioBuffer<float> ins1Buffer, ins2Buffer;  // insert send buffers
 
     // Global effects bus
     dsp::PlateReverb plateReverb;
@@ -153,6 +156,9 @@ private:
     dsp::StereoFlanger stereoFlanger;
     dsp::Distortion distortion;
     dsp::MasterBus   masterBus;
+
+    // Master insert slots (post-aux-return, pre-master-bus)
+    std::array<ExternalPluginSlot, 2> insertSlots;
 
     bool prepared = false;
     MetronomeClick metronome;

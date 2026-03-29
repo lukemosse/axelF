@@ -37,6 +37,7 @@ target_sources(AxelF
 
         # Common
         Source/Common/MasterMixer.cpp
+        Source/Common/ExternalPluginSlot.cpp
         Source/Common/ModulationMatrix.cpp
         Source/Common/PresetManager.cpp
         Source/Common/GlobalTransport.cpp
@@ -303,4 +304,5 @@ target_compile_definitions(AxelF
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_DISPLAY_SPLASH_SCREEN=0
+        JUCE_PLUGINHOST_VST3=1
 )
