@@ -65,8 +65,9 @@ private:
     float vco3DetuneCents = 0.0f;
     int   vco3CtrlMode = 0;             // 0=normal, 1=LFO mode (ignores keyboard)
 
-    // Range multipliers per VCO (indexed 0–5: 32'/16'/8'/4'/2'/Lo)
-    static constexpr float kRangeMultipliers[] = { 0.5f, 1.0f, 2.0f, 4.0f, 8.0f };
+    // Range multipliers per VCO (indexed 0–4: 32'/16'/8'/4'/2')
+    // 8' = concert pitch (1.0×), matching real Minimoog & Jupiter8/JX3P
+    static constexpr float kRangeMultipliers[] = { 0.25f, 0.5f, 1.0f, 2.0f, 4.0f };
     int vco1RangeIdx = 1;
     int vco2RangeIdx = 1;
     int vco3RangeIdx = 1;

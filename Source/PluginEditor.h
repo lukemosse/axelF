@@ -9,6 +9,7 @@
 #include "UI/MixerSidePanel.h"
 #include "UI/PresetBrowser.h"
 #include "UI/AboutOverlay.h"
+#include "UI/RenderDialog.h"
 
 #if JucePlugin_Build_Standalone
  #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
@@ -43,6 +44,7 @@ public:
     void sessionSaveAs();
     void updateSessionLabel();
     void autoSaveSession();
+    void showRenderDialog();
 
 private:
     AxelFProcessor& processorRef;
@@ -80,6 +82,7 @@ private:
     juce::MidiKeyboardComponent keyboard;
     juce::TooltipWindow tooltipWindow { this, 400 };
     ui::AboutOverlay aboutOverlay;
+    ui::RenderDialog renderDialog;
 
     // MIDI Learn right-click listener for all child sliders
     struct MidiLearnMouseListener : public juce::MouseListener

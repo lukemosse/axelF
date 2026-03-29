@@ -14,7 +14,8 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
     : AudioProcessorEditor(processor),
       processorRef(processor),
       tabs(processor),
-      keyboard(processorRef.getKeyboardState(), juce::MidiKeyboardComponent::horizontalKeyboard)
+      keyboard(processorRef.getKeyboardState(), juce::MidiKeyboardComponent::horizontalKeyboard),
+      renderDialog(processor)
 {
     setLookAndFeel(&lookAndFeel);
 
@@ -169,6 +170,10 @@ AxelFEditor::AxelFEditor(AxelFProcessor& processor)
     aboutOverlay.setVisible(false);
     addChildComponent(aboutOverlay);
 
+    // ── Render dialog (hidden until FILE → Render) ───────────
+    renderDialog.setVisible(false);
+    addChildComponent(renderDialog);
+
     topBar.getLogoButton().onClick = [this]()
     {
         aboutOverlay.setBounds(getLocalBounds());
@@ -295,6 +300,7 @@ void AxelFEditor::resized()
     // Preset browser overlays the entire editor
     presetBrowser.setBounds(getLocalBounds());
     aboutOverlay.setBounds(getLocalBounds());
+    renderDialog.setBounds(getLocalBounds());
 }
 
 void AxelFEditor::toggleRecord()
@@ -367,6 +373,13 @@ bool AxelFEditor::keyPressed(const juce::KeyPress& key)
     if (key == juce::KeyPress('n', ctrl, 0))
     {
         sessionNew();
+        return true;
+    }
+
+    // Ctrl+E — render to file
+    if (key == juce::KeyPress('e', ctrl, 0))
+    {
+        showRenderDialog();
         return true;
     }
 
@@ -502,6 +515,17 @@ void AxelFEditor::showMidiLearnMenu(juce::Component* target, const juce::String&
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Render dialog
+// ═══════════════════════════════════════════════════════════════
+
+void AxelFEditor::showRenderDialog()
+{
+    renderDialog.reset();
+    renderDialog.setVisible(true);
+    renderDialog.toFront(true);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Session file management
 // ═══════════════════════════════════════════════════════════════
 
@@ -513,6 +537,8 @@ void AxelFEditor::showSessionMenu()
     menu.addSeparator();
     menu.addItem(3, "Save Session        Ctrl+S");
     menu.addItem(4, "Save Session As...  Ctrl+Shift+S");
+    menu.addSeparator();
+    menu.addItem(5, "Render to File...   Ctrl+E");
 
     menu.showMenuAsync(
         juce::PopupMenu::Options().withTargetComponent(&topBar.getFileButton()),
@@ -520,10 +546,11 @@ void AxelFEditor::showSessionMenu()
         {
             switch (result)
             {
-                case 1: sessionNew();    break;
-                case 2: sessionOpen();   break;
-                case 3: sessionSave();   break;
-                case 4: sessionSaveAs(); break;
+                case 1: sessionNew();        break;
+                case 2: sessionOpen();       break;
+                case 3: sessionSave();       break;
+                case 4: sessionSaveAs();     break;
+                case 5: showRenderDialog();  break;
                 default: break;
             }
         });

@@ -75,20 +75,20 @@ void Moog15Processor::updateVoiceParameters()
 
     // VCO-1
     int vco1Wave    = static_cast<int>(safeLoad("moog_vco1_waveform"));
-    int vco1Range   = static_cast<int>(safeLoad("moog_vco1_range", 1.0f));
+    int vco1Range   = static_cast<int>(safeLoad("moog_vco1_footage", 1.0f));
     float vco1Level = safeLoad("moog_vco1_level", 0.8f);
     float vco1PW    = safeLoad("moog_vco1_pw", 0.5f);
 
     // VCO-2
     int vco2Wave    = static_cast<int>(safeLoad("moog_vco2_waveform"));
-    int vco2Range   = static_cast<int>(safeLoad("moog_vco2_range", 1.0f));
+    int vco2Range   = static_cast<int>(safeLoad("moog_vco2_footage", 1.0f));
     float vco2Detune = safeLoad("moog_vco2_detune", 7.0f);
     float vco2Level = safeLoad("moog_vco2_level", 0.6f);
     float vco2PW    = safeLoad("moog_vco2_pw", 0.5f);
 
     // VCO-3
     int vco3Wave    = static_cast<int>(safeLoad("moog_vco3_waveform"));
-    int vco3Range   = static_cast<int>(safeLoad("moog_vco3_range", 1.0f));
+    int vco3Range   = static_cast<int>(safeLoad("moog_vco3_footage", 1.0f));
     float vco3Detune = safeLoad("moog_vco3_detune", -5.0f);
     float vco3Level = safeLoad("moog_vco3_level", 0.4f);
     float vco3PW    = safeLoad("moog_vco3_pw", 0.5f);

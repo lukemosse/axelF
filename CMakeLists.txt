@@ -16,7 +16,7 @@ juce_add_plugin(AxelF
     COMPANY_NAME "AxelF"
     PLUGIN_MANUFACTURER_CODE AXLF
     PLUGIN_CODE Axlf
-    FORMATS VST3 AU Standalone
+    FORMATS Standalone
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
@@ -33,6 +33,7 @@ target_sources(AxelF
 
         # UI
         Source/UI/AxelFLookAndFeel.cpp
+        Source/UI/RenderDialog.cpp
 
         # Common
         Source/Common/MasterMixer.cpp

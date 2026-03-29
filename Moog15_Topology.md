@@ -173,17 +173,17 @@ Total filter LFO swing can reach ±5000 Hz at full settings.
 ### Range Mapping
 
 ```
-phaseIncrement = frequency × (16.0 / range) / sampleRate
+phaseIncrement = frequency × (8.0 / range) / sampleRate
 ```
-Range parameter: 2.0–32.0 (default 16 = unity). Range=32→0.5× frequency, range=16→1×, range=8→2×, etc.
+Range parameter: 2.0–32.0 (default 16). 8' = concert pitch (1.0×). Range=32→0.25×, range=16→0.5×, range=8→1×, range=4→2×, range=2→4×.
 
 ### Three-Oscillator Configuration
 
 | VCO | Range Default | Detune Range | Detune Default | Level Default |
 |---|---|---|---|---|
-| VCO-1 | 16 (unity) | — | — | 0.8 |
-| VCO-2 | 16 (unity) | ±100 cents | 0 | 0.6 |
-| VCO-3 | 16 (unity) | ±100 cents | 0 | 0.4 |
+| VCO-1 | 16 (0.5×) | — | — | 0.8 |
+| VCO-2 | 16 (0.5×) | ±100 cents | 0 | 0.6 |
+| VCO-3 | 16 (0.5×) | ±100 cents | 0 | 0.4 |
 
 **No cross-modulation, no hard sync, no ring mod**. Oscillators are purely additive, mixed via independent level controls.
 

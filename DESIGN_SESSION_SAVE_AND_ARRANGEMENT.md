@@ -587,12 +587,278 @@ Alternatively, simpler approach: **longest active pattern** determines the maste
 
 ---
 
-## 9. Render to WAV (Future — Phase D)
+## 9. Render to WAV (Phase D)
 
-Planned for a future phase after the core arrangement system is stable:
+---
 
-- SONG mode → File → Render → bounces the full arrangement to a WAV file
-- Offline rendering (faster than real-time)
-- Options: sample rate, bit depth, per-module stems vs stereo mix
-- Uses the same playback engine — iterates through the timeline, processes blocks, writes to file
-- Not in scope for initial implementation
+### 9.1 Entry Point — FILE Menu + Keyboard Shortcut
+
+The existing `showSessionMenu()` in `PluginEditor.cpp` gets a new item:
+
+```cpp
+menu.addSeparator();
+menu.addItem(5, "Render to File...   Ctrl+E");
+```
+
+The menu item is **always enabled**. If the user opens it in JAM mode or with an empty arrangement, the dialog itself shows a message ("Switch to SONG mode and add blocks to render"). This avoids the confusion of a grayed-out menu item with no explanation.
+
+`Ctrl+E` keyboard shortcut wired in `keyPressed()` alongside the existing `Ctrl+S`, `Ctrl+O`, etc.
+
+---
+
+### 9.2 UI Component — RenderDialog
+
+Follows the same overlay pattern as `AboutOverlay` and `PresetBrowser`: a `juce::Component` child of `PluginEditor`, full-bounds, hidden until shown.
+
+```cpp
+// In PluginEditor.h
+#include "UI/RenderDialog.h"
+ui::RenderDialog renderDialog;
+
+// In constructor (after aboutOverlay setup):
+renderDialog.setVisible(false);
+addChildComponent(renderDialog);
+
+// In resized():
+renderDialog.setBounds(getLocalBounds());
+```
+
+---
+
+### 9.3 Layout
+
+Centered floating card over a semi-transparent backdrop. Follows the AboutOverlay visual language.
+
+```
+╔════════════════════════════════════════════════════╗
+║  RENDER TO FILE                               [✕]  ║  ← gold border, 14px bold title
+║  ──────────────────────────────────────────────── ║
+║                                                    ║
+║  OUTPUT                                            ║
+║  [ Full Mix ]  [ Individual Tracks ]               ║  ← segmented toggle
+║                                                    ║
+║  FORMAT                   SAMPLE RATE              ║
+║  [ WAV 24-bit        ▾ ] [ 48000 Hz          ▾ ]  ║
+║                                                    ║
+║  TAIL                     ☑ Normalize output       ║
+║  [ +2 bars           ▾ ]                           ║
+║                                                    ║
+║  32 bars — 62.1 sec  →  7 files                    ║  ← read-only summary
+║                                                    ║
+║  OUTPUT PATH                                       ║
+║  C:\Users\…\My Session.wav          [ Browse… ]    ║  ← path label + browse button
+║                                                    ║
+║  ──────────────────────────────────────────────── ║
+║  [████████████████████████░░░░░░░░░] 64%     Abort ║  ← hidden until rendering
+║                                                    ║
+║                      [ Cancel ]  [ Render  ▶ ]     ║
+╚════════════════════════════════════════════════════╝
+```
+
+**Card dimensions:** 520 × 420px, centered.
+
+**Colors (matching AxelFColours.h):**
+| Element | Colour |
+|---|---|
+| Backdrop | `0xCC000000` |
+| Card background | `0xFF1a1a30` |
+| Card border | `accentGold` (0xFFd4a843), 1.5px rounded rect r=8 |
+| Title text | `accentGold`, 14px bold |
+| Section labels ("OUTPUT", "FORMAT", etc.) | `textSecondary` (0xFF9898b0), 10px |
+| Combo/toggle bg | `bgControl` (0xFF3a3a5c) |
+| Active toggle fill | `accentBlue` (0xFF5b8bd4) |
+| Summary text | `textPrimary` (0xFFe8e8f0), 12px |
+| Path label | `textPrimary`, 11px, truncated left (shows `…\filename.wav`) |
+| Progress bar fill | `accentGreen` (0xFF5bd47a) |
+| Progress bar track | `bgSection` (0xFF2d2d4a) |
+| Render button | `accentGreen` bg, textPrimary text, 13px bold |
+| Cancel/Close button | `bgControl` bg, textSecondary text |
+| Normalize checkbox | `textLabel` (0xFFb0b0cc), tick = `accentBlue` |
+| Error text | `accentRed` (0xFFd45b5b), 11px |
+| Plugin warning banner | `bgSection` bg, `accentOrange` left stripe, 10px text |
+
+---
+
+### 9.4 Controls Specification
+
+#### Output Mode — "Full Mix" / "Individual Tracks"
+Segmented toggle pair (two `TextButton`, radio group):
+- **Full Mix** — single interleaved stereo WAV (full master bus output including FX)
+- **Individual Tracks** — 7 files: 6 module tracks + a final mix
+
+Label "Full Mix" / "Individual Tracks" chosen to be immediately clear to non-engineers. Default: Full Mix.
+
+#### Format (ComboBox)
+1. WAV 16-bit
+2. **WAV 24-bit** ← default
+3. WAV 32-bit float
+4. AIFF 24-bit
+
+#### Sample Rate (ComboBox)
+1. 44100 Hz
+2. **48000 Hz** ← default
+3. 88200 Hz
+4. 96000 Hz
+
+Default auto-selects to match the current host sample rate at dialog open.
+
+#### Tail (ComboBox)
+Extra bars of silence after last arrangement block (for reverb/delay decay):
+1. None (+0)
+2. +1 bar
+3. **+2 bars** ← default
+4. +4 bars
+
+#### Normalize checkbox
+When checked, the rendered file(s) are peak-normalized to −0.1 dBFS after writing. Default: unchecked.
+
+Implementation: two-pass isn't needed — measure the peak during the render loop, then apply a single gain pass on the completed file. Or simpler: scan peak after writing, then re-open and scale in a second pass via `AudioFormatReader` → gain → rewrite. For stems mode, each file is normalized independently.
+
+#### Length summary (read-only label)
+Shows: `"32 bars — 62.1 sec"` (or `"32 bars — 62.1 sec  →  7 files"` in Individual Tracks mode). Updates live when Tail dropdown changes.
+
+#### Output path row
+- **Path label** — shows the selected file path, truncated from the left (`…\folder\filename.wav`). Initially shows a suggested default: `<SessionsDir>/<SessionName>.wav`.
+- **Browse…** button — opens a native `juce::FileChooser`. In "Full Mix" mode: file picker. In "Individual Tracks" mode: folder picker (files auto-named).
+
+The path is visible and editable before the user clicks Render. This matches the standard DAW pattern where users verify the destination first.
+
+#### Progress area (hidden until render starts)
+- `juce::ProgressBar` with `accentGreen` fill
+- Status label: "Rendering… 64%" or "Normalizing…" or "Done! → My Session.wav"
+- "Abort" text button (replaces Cancel during render)
+
+#### Buttons
+- **Cancel** / **Close** (left): hides dialog in idle/done states; aborts in rendering state
+- **Render ▶** (right, green): validates path → starts render thread. Disabled during render, becomes "Render Again" on completion.
+
+---
+
+### 9.5 State Machine
+
+```
+     IDLE ──── [Cancel / ✕ / click backdrop] ──── (hidden)
+       │
+       │ [Render ▶]
+       │ ├─ Path empty? → show error "Choose an output path"
+       │ ├─ No SONG content? → show error "Switch to SONG mode and add blocks"
+       │ └─ Valid → RENDERING
+       │
+     RENDERING
+       │  - Render button disabled ("Rendering…")
+       │  - Progress bar visible, Cancel becomes "Abort"
+       │  - OfflineRenderThread runs
+       │
+       ├─ [Abort] → thread.signalThreadShouldExit()
+       │           → wait for exit → delete partial file(s)
+       │           → back to IDLE
+       │
+       ├─ Normalize checked? → brief "Normalizing…" pass after render loop
+       │
+       ├─ thread error → show red error text, revert to IDLE
+       │
+       └─ thread success → DONE
+                           label = "Done! → filename.wav"
+                           Render becomes "Render Again", Cancel becomes "Close"
+```
+
+---
+
+### 9.6 OfflineRenderThread
+
+```cpp
+class OfflineRenderThread : public juce::Thread
+{
+public:
+    struct Options
+    {
+        bool         individualTracks;
+        int          bitDepth;       // 16, 24, or 32
+        bool         floatFormat;    // true for 32-bit float
+        bool         useAiff;
+        double       sampleRate;
+        int          tailBars;
+        bool         normalize;
+        juce::File   outputFile;     // used for Full Mix
+        juce::File   outputDir;      // used for Individual Tracks
+        juce::String baseName;
+    };
+
+    OfflineRenderThread(AxelFProcessor& proc, const Options& opts);
+    void run() override;
+
+    std::atomic<double> progress { 0.0 };
+    std::atomic<bool>   succeeded { false };
+    juce::String        errorMessage;
+};
+```
+
+**`run()` pseudocode:**
+
+```
+1. Snapshot state → MemoryBlock
+2. suspendProcessing(true) to pause the audio thread
+3. prepareToPlay(options.sampleRate, 512)
+4. Reset transport to beat 0
+5. Calculate totalSamples from arrangement length + tail
+6. Open AudioFormatWriter(s) for output files
+7. Loop in 512-sample blocks:
+     a. Clear MIDI buffer
+     b. processBlock(mixBuffer, midi)
+     c. Write mixBuffer to mix writer
+     d. If individualTracks: capture per-module buffers, write to stem writers
+     e. Track peak sample (if normalize)
+     f. progress = samplesWritten / totalSamples
+     g. if threadShouldExit() → break
+8. Close all writers
+9. If normalize && peak > 0: apply gain (−0.1 dBFS / peak) to each file
+10. Restore state from snapshot
+11. suspendProcessing(false)
+12. Set succeeded / errorMessage
+13. MessageManager::callAsync → trigger UI refresh
+```
+
+`suspendProcessing(true)` tells JUCE to silence the audio callback, so the render thread has exclusive access to processBlock. This is safe in both standalone and plugin mode. In standalone the user hears silence during render; in plugin mode the DAW gets silence (equivalent to bypassing).
+
+---
+
+### 9.7 Track File Naming
+
+When **Individual Tracks** is selected, the user picks an output folder. Files are auto-named:
+
+| File | Content |
+|---|---|
+| `<BaseName>_Jupiter8.wav` | Jupiter-8 post-fader (level + pan applied, pre-send) |
+| `<BaseName>_Moog.wav` | Moog post-fader |
+| `<BaseName>_JX3P.wav` | JX-3P post-fader |
+| `<BaseName>_DX7.wav` | DX7 post-fader |
+| `<BaseName>_PPGWave.wav` | PPG Wave post-fader |
+| `<BaseName>_LinnDrum.wav` | LinnDrum post-fader |
+| `<BaseName>_Mix.wav` | Full master bus (with send FX + master bus processing) |
+
+`BaseName` defaults to the session name (sanitized via `juce::File::createLegalFileName`).
+
+Tracks are **post-fader, pre-send** (dry). The Mix file goes through the complete chain including reverb, delay, chorus, and master bus EQ/comp/limiter.
+
+---
+
+### 9.8 Plugin Mode Warning
+
+When running as VST3/AU (not standalone), a one-line banner appears above the Format row:
+
+```
+⚠ Stop your DAW before rendering for best results.
+```
+
+`bgSection` background, `accentOrange` left stripe (3px), 10px text in `textSecondary`. No technical jargon. The Render button remains enabled.
+
+---
+
+### 9.9 Source Files
+
+| File | Purpose |
+|---|---|
+| `Source/UI/RenderDialog.h` | Full dialog component (header-only, matches AboutOverlay pattern) |
+| `Source/PluginEditor.h/.cpp` | `renderDialog` member, `showRenderDialog()`, FILE menu item 5, `Ctrl+E` shortcut |
+
+No CMake changes needed — header-only UI components are not listed in `target_sources`.

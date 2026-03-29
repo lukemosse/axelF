@@ -72,18 +72,18 @@ public:
 
         // ── VCO section ────────────────────────────────────────────────────
         makeCombo("moog_vco1_waveform", "VCO-1 Wave");    // combo 0
-        makeCombo("moog_vco1_range", "VCO-1 Range");      // combo 1
+        makeCombo("moog_vco1_footage", "VCO-1 Range");    // combo 1
         makeSlider("moog_vco1_level", "VCO-1 Lvl");        // slider 0
         makeSlider("moog_vco1_pw", "VCO-1 PW");            // slider 1
 
         makeCombo("moog_vco2_waveform", "VCO-2 Wave");    // combo 2
-        makeCombo("moog_vco2_range", "VCO-2 Range");      // combo 3
+        makeCombo("moog_vco2_footage", "VCO-2 Range");    // combo 3
         makeSlider("moog_vco2_detune", "VCO-2 Det");       // slider 2
         makeSlider("moog_vco2_level", "VCO-2 Lvl");        // slider 3
         makeSlider("moog_vco2_pw", "VCO-2 PW");            // slider 4
 
         makeCombo("moog_vco3_waveform", "VCO-3 Wave");    // combo 4
-        makeCombo("moog_vco3_range", "VCO-3 Range");      // combo 5
+        makeCombo("moog_vco3_footage", "VCO-3 Range");    // combo 5
         makeSlider("moog_vco3_detune", "VCO-3 Det");       // slider 5
         makeSlider("moog_vco3_level", "VCO-3 Lvl");        // slider 6
         makeSlider("moog_vco3_pw", "VCO-3 PW");            // slider 7

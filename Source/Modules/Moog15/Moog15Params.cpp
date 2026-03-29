@@ -14,7 +14,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         2));  // default: Sawtooth
 
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ "moog_vco1_range", 1 }, "VCO-1 Range",
+        juce::ParameterID{ "moog_vco1_footage", 1 }, "VCO-1 Range",
         juce::StringArray{ "32'", "16'", "8'", "4'", "2'" },
         1));  // default: 16'
 
@@ -33,7 +33,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         2));
 
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ "moog_vco2_range", 1 }, "VCO-2 Range",
+        juce::ParameterID{ "moog_vco2_footage", 1 }, "VCO-2 Range",
         juce::StringArray{ "32'", "16'", "8'", "4'", "2'" },
         1));
 
@@ -56,7 +56,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         2));
 
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ "moog_vco3_range", 1 }, "VCO-3 Range",
+        juce::ParameterID{ "moog_vco3_footage", 1 }, "VCO-3 Range",
         juce::StringArray{ "32'", "16'", "8'", "4'", "2'", "Lo" },
         1));
 
