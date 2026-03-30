@@ -53,6 +53,7 @@ target_sources(AxelF
         Source/Common/DSP/Oversampler.cpp
         Source/Common/DSP/PlateReverb.cpp
         Source/Common/DSP/StereoDelay.cpp
+        Source/Common/DSP/DiffuseDelay.cpp
         Source/Common/DSP/MasterBus.cpp
 
         # Jupiter-8

@@ -4,6 +4,12 @@
 namespace axelf
 {
 
+// Discrete predelay depth levels: Close / Near / Mid / Far
+// Close = large predelay (direct arrives well before reverb)
+// Far   = no predelay (direct and reverb arrive together)
+static constexpr float kPredelayMs[] = { 80.0f, 40.0f, 15.0f, 0.0f };
+static constexpr int   kNumPredelayLevels = 4;
+
 // ── Parameter layout for mixer APVTS ─────────────────────────
 juce::AudioProcessorValueTreeState::ParameterLayout createMixerParameterLayout()
 {
@@ -70,6 +76,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createMixerParameterLayout()
             juce::ParameterID { MixerParamIDs::tiltID (i), 1 },
             juce::String (MixerParamIDs::kPrefixes[i]) + " Tilt EQ",
             juce::NormalisableRange<float> (-1.0f, 1.0f, 0.01f), 0.0f));
+
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { MixerParamIDs::send1PredelayID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " Reverb Depth",
+            juce::StringArray { "Close", "Near", "Mid", "Far" }, 0));
     }
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
@@ -99,6 +110,7 @@ void MasterMixer::bindToAPVTS (juce::AudioProcessorValueTreeState& apvts)
         channels[static_cast<size_t> (i)].send6 = apvts.getRawParameterValue (MixerParamIDs::send6ID (i));
         channels[static_cast<size_t> (i)].send7 = apvts.getRawParameterValue (MixerParamIDs::send7ID (i));
         channels[static_cast<size_t> (i)].tilt  = apvts.getRawParameterValue (MixerParamIDs::tiltID (i));
+        channels[static_cast<size_t> (i)].send1Predelay = apvts.getRawParameterValue (MixerParamIDs::send1PredelayID (i));
     }
 
     masterLevelPtr = apvts.getRawParameterValue (MixerParamIDs::kMasterLevel);
@@ -123,6 +135,7 @@ void MasterMixer::prepare (double sampleRate)
     {
         tiltLpStateL[i] = 0.0f;
         tiltLpStateR[i] = 0.0f;
+        send1PreDelays[i].prepare (sampleRate);
     }
 
     prepared = true;
@@ -284,13 +297,16 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
             peak = std::max (peak, src.getMagnitude (c, 0, mainOut.getNumSamples()));
         ch.peakLevel.store (peak * level, std::memory_order_relaxed);
 
-        if (muted)
-            continue;
-        if (anySolo && !solo)
-            continue;
+        // Set send1 predelay target (must happen before any skip to keep delay in sync)
+        const int pdIdx = ch.send1Predelay ? juce::roundToInt (ch.send1Predelay->load (std::memory_order_relaxed)) : 0;
+        send1PreDelays[i].setDelayMs (kPredelayMs[juce::jlimit (0, kNumPredelayLevels - 1, pdIdx)]);
 
-        if (src.getNumChannels() < 2 || mainOut.getNumChannels() < 2)
+        if (muted || (anySolo && !solo) || src.getNumChannels() < 2 || mainOut.getNumChannels() < 2)
+        {
+            for (int s = 0; s < mainOut.getNumSamples(); ++s)
+                send1PreDelays[i].processSample (0.0f, 0.0f);
             continue;
+        }
 
         const int numSamples = mainOut.getNumSamples();
         const auto* srcL = src.getReadPointer (0);
@@ -334,8 +350,13 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
 
                 if (s1 > 0.001f)
                 {
-                    a1L[s] += inL * gL * s1;
-                    a1R[s] += inR * gR * s1;
+                    auto [dL, dR] = send1PreDelays[i].processSample (inL * gL * s1, inR * gR * s1);
+                    a1L[s] += dL;
+                    a1R[s] += dR;
+                }
+                else
+                {
+                    send1PreDelays[i].processSample (0.0f, 0.0f);
                 }
                 if (s2 > 0.001f)
                 {
@@ -355,8 +376,19 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
 
             if (s1 > 0.001f)
             {
-                aux1Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s1);
-                aux1Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s1);
+                auto* a1L = aux1Out.getWritePointer (0);
+                auto* a1R = aux1Out.getWritePointer (1);
+                for (int s = 0; s < numSamples; ++s)
+                {
+                    auto [dL, dR] = send1PreDelays[i].processSample (srcL[s] * gainL * s1, srcR[s] * gainR * s1);
+                    a1L[s] += dL;
+                    a1R[s] += dR;
+                }
+            }
+            else
+            {
+                for (int s = 0; s < numSamples; ++s)
+                    send1PreDelays[i].processSample (0.0f, 0.0f);
             }
             if (s2 > 0.001f)
             {
@@ -426,9 +458,15 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
             peak = std::max (peak, src.getMagnitude (c, 0, mainOut.getNumSamples()));
         ch.peakLevel.store (peak * level, std::memory_order_relaxed);
 
-        if (muted) continue;
-        if (anySolo && !solo) continue;
-        if (src.getNumChannels() < 2 || mainOut.getNumChannels() < 2) continue;
+        const int pdIdx5 = ch.send1Predelay ? juce::roundToInt (ch.send1Predelay->load (std::memory_order_relaxed)) : 0;
+        send1PreDelays[i].setDelayMs (kPredelayMs[juce::jlimit (0, kNumPredelayLevels - 1, pdIdx5)]);
+
+        if (muted || (anySolo && !solo) || src.getNumChannels() < 2 || mainOut.getNumChannels() < 2)
+        {
+            for (int s = 0; s < mainOut.getNumSamples(); ++s)
+                send1PreDelays[i].processSample (0.0f, 0.0f);
+            continue;
+        }
 
         const int numSamples = mainOut.getNumSamples();
         const bool hasTilt5 = std::abs (tilt) > 0.001f;
@@ -459,7 +497,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
                 outL[s] += inL * gainL;
                 outR[s] += inR * gainR;
 
-                if (s1 > 0.001f) { aux1Out.getWritePointer(0)[s] += inL * gainL * s1; aux1Out.getWritePointer(1)[s] += inR * gainR * s1; }
+                if (s1 > 0.001f) { auto [dL, dR] = send1PreDelays[i].processSample (inL * gainL * s1, inR * gainR * s1); aux1Out.getWritePointer(0)[s] += dL; aux1Out.getWritePointer(1)[s] += dR; } else { send1PreDelays[i].processSample (0.0f, 0.0f); }
                 if (s2 > 0.001f) { aux2Out.getWritePointer(0)[s] += inL * gainL * s2; aux2Out.getWritePointer(1)[s] += inR * gainR * s2; }
                 if (s3 > 0.001f) { aux3Out.getWritePointer(0)[s] += inL * gainL * s3; aux3Out.getWritePointer(1)[s] += inR * gainR * s3; }
                 if (s4 > 0.001f) { aux4Out.getWritePointer(0)[s] += inL * gainL * s4; aux4Out.getWritePointer(1)[s] += inR * gainR * s4; }
@@ -475,7 +513,24 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
             mainOut.addFrom (0, 0, src, 0, 0, numSamples, gainL);
             mainOut.addFrom (1, 0, src, 1, 0, numSamples, gainR);
 
-            if (s1 > 0.001f) { aux1Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s1); aux1Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s1); }
+            if (s1 > 0.001f)
+            {
+                const auto* sL5 = src.getReadPointer (0);
+                const auto* sR5 = src.getReadPointer (1);
+                auto* a1L5 = aux1Out.getWritePointer (0);
+                auto* a1R5 = aux1Out.getWritePointer (1);
+                for (int s = 0; s < numSamples; ++s)
+                {
+                    auto [dL, dR] = send1PreDelays[i].processSample (sL5[s] * gainL * s1, sR5[s] * gainR * s1);
+                    a1L5[s] += dL;
+                    a1R5[s] += dR;
+                }
+            }
+            else
+            {
+                for (int s = 0; s < numSamples; ++s)
+                    send1PreDelays[i].processSample (0.0f, 0.0f);
+            }
             if (s2 > 0.001f) { aux2Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s2); aux2Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s2); }
             if (s3 > 0.001f) { aux3Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s3); aux3Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s3); }
             if (s4 > 0.001f) { aux4Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s4); aux4Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s4); }
@@ -549,9 +604,15 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
             peak = std::max (peak, src.getMagnitude (c, 0, mainOut.getNumSamples()));
         ch.peakLevel.store (peak * level, std::memory_order_relaxed);
 
-        if (muted) continue;
-        if (anySolo && !solo) continue;
-        if (src.getNumChannels() < 2 || mainOut.getNumChannels() < 2) continue;
+        const int pdIdx7 = ch.send1Predelay ? juce::roundToInt (ch.send1Predelay->load (std::memory_order_relaxed)) : 0;
+        send1PreDelays[i].setDelayMs (kPredelayMs[juce::jlimit (0, kNumPredelayLevels - 1, pdIdx7)]);
+
+        if (muted || (anySolo && !solo) || src.getNumChannels() < 2 || mainOut.getNumChannels() < 2)
+        {
+            for (int s = 0; s < mainOut.getNumSamples(); ++s)
+                send1PreDelays[i].processSample (0.0f, 0.0f);
+            continue;
+        }
 
         const int numSamples = mainOut.getNumSamples();
         const bool hasTilt7 = std::abs (tilt) > 0.001f;
@@ -581,7 +642,7 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
                 outL[s] += inL * gainL;
                 outR[s] += inR * gainR;
 
-                if (s1 > 0.001f) { aux1Out.getWritePointer(0)[s] += inL * gainL * s1; aux1Out.getWritePointer(1)[s] += inR * gainR * s1; }
+                if (s1 > 0.001f) { auto [dL, dR] = send1PreDelays[i].processSample (inL * gainL * s1, inR * gainR * s1); aux1Out.getWritePointer(0)[s] += dL; aux1Out.getWritePointer(1)[s] += dR; } else { send1PreDelays[i].processSample (0.0f, 0.0f); }
                 if (s2 > 0.001f) { aux2Out.getWritePointer(0)[s] += inL * gainL * s2; aux2Out.getWritePointer(1)[s] += inR * gainR * s2; }
                 if (s3 > 0.001f) { aux3Out.getWritePointer(0)[s] += inL * gainL * s3; aux3Out.getWritePointer(1)[s] += inR * gainR * s3; }
                 if (s4 > 0.001f) { aux4Out.getWritePointer(0)[s] += inL * gainL * s4; aux4Out.getWritePointer(1)[s] += inR * gainR * s4; }
@@ -599,7 +660,24 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
             mainOut.addFrom (0, 0, src, 0, 0, numSamples, gainL);
             mainOut.addFrom (1, 0, src, 1, 0, numSamples, gainR);
 
-            if (s1 > 0.001f) { aux1Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s1); aux1Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s1); }
+            if (s1 > 0.001f)
+            {
+                const auto* sL7 = src.getReadPointer (0);
+                const auto* sR7 = src.getReadPointer (1);
+                auto* a1L7 = aux1Out.getWritePointer (0);
+                auto* a1R7 = aux1Out.getWritePointer (1);
+                for (int s = 0; s < numSamples; ++s)
+                {
+                    auto [dL, dR] = send1PreDelays[i].processSample (sL7[s] * gainL * s1, sR7[s] * gainR * s1);
+                    a1L7[s] += dL;
+                    a1R7[s] += dR;
+                }
+            }
+            else
+            {
+                for (int s = 0; s < numSamples; ++s)
+                    send1PreDelays[i].processSample (0.0f, 0.0f);
+            }
             if (s2 > 0.001f) { aux2Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s2); aux2Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s2); }
             if (s3 > 0.001f) { aux3Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s3); aux3Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s3); }
             if (s4 > 0.001f) { aux4Out.addFrom (0, 0, src, 0, 0, numSamples, gainL * s4); aux4Out.addFrom (1, 0, src, 1, 0, numSamples, gainR * s4); }
@@ -691,6 +769,13 @@ float MasterMixer::getTilt (int ch) const
     return p ? p->load (std::memory_order_relaxed) : 0.0f;
 }
 
+float MasterMixer::getSend1Predelay (int ch) const
+{
+    auto* p = channels[static_cast<size_t> (ch)].send1Predelay;
+    const int idx = p ? juce::roundToInt (p->load (std::memory_order_relaxed)) : 0;
+    return kPredelayMs[juce::jlimit (0, kNumPredelayLevels - 1, idx)];
+}
+
 float MasterMixer::getMasterLevel() const
 {
     return masterLevelPtr ? masterLevelPtr->load (std::memory_order_relaxed) : 1.0f;
@@ -779,6 +864,13 @@ void MasterMixer::setTilt (int ch, float v)
     if (boundAPVTS)
         if (auto* param = boundAPVTS->getParameter (MixerParamIDs::tiltID (ch)))
             param->setValueNotifyingHost (param->convertTo0to1 (v));
+}
+
+void MasterMixer::setSend1Predelay (int ch, float v)
+{
+    if (boundAPVTS)
+        if (auto* param = boundAPVTS->getParameter (MixerParamIDs::send1PredelayID (ch)))
+            param->setValueNotifyingHost (param->convertTo0to1 (juce::jlimit (0.0f, float (kNumPredelayLevels - 1), v)));
 }
 
 void MasterMixer::setMasterLevel (float v)

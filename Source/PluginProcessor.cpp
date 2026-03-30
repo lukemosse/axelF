@@ -60,7 +60,7 @@ void AxelFProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 
     // Prepare global effects
     plateReverb.prepare(sampleRate, samplesPerBlock);
-    stereoDelay.prepare(sampleRate, samplesPerBlock);
+    diffuseDelay.prepare(sampleRate, samplesPerBlock);
     stereoChorus.prepare(sampleRate, samplesPerBlock);
     stereoFlanger.prepare(sampleRate, samplesPerBlock);
     distortion.prepare(sampleRate, samplesPerBlock);
@@ -390,17 +390,21 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         plateReverb.setPreDelay(safeLoad("fx_reverb_predelay", 10.0f));
         plateReverb.process(aux1Buffer);
 
-        // Delay params
-        stereoDelay.setTimeL(safeLoad("fx_delay_time_l", 375.0f));
-        stereoDelay.setTimeR(safeLoad("fx_delay_time_r", 375.0f));
-        stereoDelay.setFeedback(safeLoad("fx_delay_feedback", 0.3f));
-        stereoDelay.setMix(safeLoad("fx_delay_mix", 0.5f));
-        stereoDelay.setHighCut(safeLoad("fx_delay_highcut", 12000.0f));
-        stereoDelay.setPingPong(safeLoad("fx_delay_ping_pong", 0.0f) >= 0.5f);
-        stereoDelay.setSyncMode(static_cast<dsp::StereoDelay::SyncMode>(
+        // Delay params (DiffuseDelay — FDN)
+        diffuseDelay.setTime(safeLoad("fx_delay_time_l", 375.0f));
+        diffuseDelay.setFeedback(safeLoad("fx_delay_feedback", 0.5f));
+        diffuseDelay.setMix(safeLoad("fx_delay_mix", 0.5f));
+        diffuseDelay.setDensity(safeLoad("fx_delay_density", 0.5f));
+        diffuseDelay.setWarp(safeLoad("fx_delay_warp", 0.0f));
+        diffuseDelay.setModDepth(safeLoad("fx_delay_mod_depth", 0.3f));
+        diffuseDelay.setModRate(safeLoad("fx_delay_mod_rate", 0.5f));
+        diffuseDelay.setDampHigh(safeLoad("fx_delay_highcut", 12000.0f));
+        diffuseDelay.setDampLow(safeLoad("fx_delay_lowcut", 80.0f));
+        diffuseDelay.setWidth(safeLoad("fx_delay_width", 1.0f));
+        diffuseDelay.setSyncMode(static_cast<dsp::DiffuseDelay::SyncMode>(
             static_cast<int>(safeLoad("fx_delay_sync", 0.0f))));
-        stereoDelay.setTempoBpm(transport.getBpm());
-        stereoDelay.process(aux2Buffer);
+        diffuseDelay.setTempoBpm(transport.getBpm());
+        diffuseDelay.process(aux2Buffer);
 
         // Chorus params
         stereoChorus.setRate(safeLoad("fx_chorus_rate", 1.5f));

@@ -12,7 +12,7 @@
 #include "Common/MetronomeClick.h"
 #include "Common/MidiLearn.h"
 #include "Common/DSP/PlateReverb.h"
-#include "Common/DSP/StereoDelay.h"
+#include "Common/DSP/DiffuseDelay.h"
 #include "Common/DSP/StereoChorus.h"
 #include "Common/DSP/StereoFlanger.h"
 #include "Common/DSP/Distortion.h"
@@ -151,7 +151,7 @@ private:
 
     // Global effects bus
     dsp::PlateReverb plateReverb;
-    dsp::StereoDelay stereoDelay;
+    dsp::DiffuseDelay diffuseDelay;
     dsp::StereoChorus stereoChorus;
     dsp::StereoFlanger stereoFlanger;
     dsp::Distortion distortion;

@@ -36,33 +36,50 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createEffectsParamete
         juce::ParameterID { "fx_reverb_predelay", 1 }, "Reverb Predelay",
         juce::NormalisableRange<float> (0.0f, 100.0f, 0.1f), 10.0f));
 
-    // ── Delay ─────────────────────────────────────────────────
+    // ── Delay (DiffuseDelay — FDN-based) ─────────────────────
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "fx_delay_time_l", 1 }, "Delay Time L",
-        juce::NormalisableRange<float> (1.0f, 2000.0f, 0.1f, 0.4f), 375.0f));
-
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "fx_delay_time_r", 1 }, "Delay Time R",
+        juce::ParameterID { "fx_delay_time_l", 1 }, "Delay Time",
         juce::NormalisableRange<float> (1.0f, 2000.0f, 0.1f, 0.4f), 375.0f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "fx_delay_feedback", 1 }, "Delay Feedback",
-        juce::NormalisableRange<float> (0.0f, 0.95f, 0.01f), 0.3f));
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "fx_delay_mix", 1 }, "Delay Mix",
         juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "fx_delay_highcut", 1 }, "Delay HighCut",
+        juce::ParameterID { "fx_delay_density", 1 }, "Delay Density",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_delay_warp", 1 }, "Delay Warp",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_delay_mod_depth", 1 }, "Delay Mod Depth",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.3f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_delay_mod_rate", 1 }, "Delay Mod Rate",
+        juce::NormalisableRange<float> (0.01f, 10.0f, 0.01f, 0.4f), 0.5f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_delay_highcut", 1 }, "Delay Damp High",
         juce::NormalisableRange<float> (1000.0f, 20000.0f, 1.0f, 0.4f), 12000.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_delay_lowcut", 1 }, "Delay Damp Low",
+        juce::NormalisableRange<float> (20.0f, 2000.0f, 1.0f, 0.4f), 80.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_delay_width", 1 }, "Delay Width",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 1.0f));
 
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { "fx_delay_sync", 1 }, "Delay Sync",
         juce::StringArray { "Off", "1/4", "1/8", "Dotted 1/8", "1/16", "Triplet" }, 0));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { "fx_delay_ping_pong", 1 }, "Delay Ping Pong", false));
 
     // ── Master Bus EQ ─────────────────────────────────────────
     params.push_back (std::make_unique<juce::AudioParameterFloat> (

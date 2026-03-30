@@ -3,6 +3,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
+#include "DSP/SendPreDelay.h"
 #include <array>
 #include <atomic>
 
@@ -26,6 +27,7 @@ namespace MixerParamIDs
     inline juce::String send6ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send6"; }
     inline juce::String send7ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send7"; }
     inline juce::String tiltID  (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_tilt"; }
+    inline juce::String send1PredelayID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send1_predelay"; }
 
     static constexpr const char* kMasterLevel = "mix_master_level";
 }
@@ -90,6 +92,7 @@ public:
     float getSend6 (int ch) const;
     float getSend7 (int ch) const;
     float getTilt  (int ch) const;
+    float getSend1Predelay (int ch) const;
     float getMasterLevel() const;
 
     // Master output peak metering (written by audio thread, read by UI timer)
@@ -111,6 +114,7 @@ public:
     void setSend6 (int ch, float v);
     void setSend7 (int ch, float v);
     void setTilt  (int ch, float v);
+    void setSend1Predelay (int ch, float v);
     void setMasterLevel (float v);
 
 private:
@@ -130,6 +134,7 @@ private:
         std::atomic<float>* send6 = nullptr;
         std::atomic<float>* send7 = nullptr;
         std::atomic<float>* tilt  = nullptr;
+        std::atomic<float>* send1Predelay = nullptr;
         std::atomic<float>  peakLevel { 0.0f };
     };
 
@@ -142,6 +147,9 @@ private:
     juce::SmoothedValue<float> panSmoothed[6];
     juce::SmoothedValue<float> masterSmoothed;
     bool prepared = false;
+
+    // Per-channel predelay on reverb send (send1) for depth positioning
+    dsp::SendPreDelay send1PreDelays[6];
 
     // Tilt EQ filter state (one-pole crossover at ~1 kHz)
     float tiltLpStateL[6] = {};

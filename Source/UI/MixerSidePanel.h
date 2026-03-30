@@ -141,6 +141,18 @@ public:
             s.send7Attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 mixApvts, MixerParamIDs::send7ID (i), s.send7Knob);
 
+            // Reverb depth (predelay) combo — 4 discrete levels
+            s.depthBox.addItemList ({ "Close", "Near", "Mid", "Far" }, 1);
+            s.depthBox.setJustificationType (juce::Justification::centred);
+            s.depthBox.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xFF0e1224));
+            s.depthBox.setColour (juce::ComboBox::outlineColourId, juce::Colour (0xFF5b8bcc).withAlpha (0.4f));
+            s.depthBox.setColour (juce::ComboBox::textColourId, juce::Colour (0xFF5b8bcc));
+            s.depthBox.setTooltip ("Reverb depth: Close / Near / Mid / Far");
+            addAndMakeVisible (s.depthBox);
+
+            s.depthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+                mixApvts, MixerParamIDs::send1PredelayID (i), s.depthBox);
+
             // Mute / Solo buttons
             s.muteBtn.setButtonText ("M");
             s.muteBtn.setClickingTogglesState (true);
@@ -239,11 +251,17 @@ public:
         reverbDampingAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_reverb_damping", reverbDamping);
 
         // ── Delay controls (global send 2) ───────────────────
-        initFxKnob (delayFeedback, "fx_delay_feedback",  0.f, 0.95f, 0.3f,  0xFFcc8b5b);
+        initFxKnob (delayTime,     "fx_delay_time_l",    1.f, 2000.f, 375.f,  0xFFcc8b5b);
+        initFxKnob (delayFeedback, "fx_delay_feedback",  0.f, 1.f,   0.5f,  0xFFcc8b5b);
         initFxKnob (delayMix,      "fx_delay_mix",       0.f, 1.f,   0.5f,  0xFFcc8b5b);
+        initFxKnob (delayDensity,  "fx_delay_density",   0.f, 1.f,   0.5f,  0xFFcc8b5b);
+        initFxKnob (delayWarp,     "fx_delay_warp",      0.f, 1.f,   0.0f,  0xFFcc8b5b);
 
+        delayTimeAttach     = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_delay_time_l",   delayTime);
         delayFeedbackAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_delay_feedback", delayFeedback);
         delayMixAttach      = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_delay_mix",      delayMix);
+        delayDensityAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_delay_density",  delayDensity);
+        delayWarpAttach     = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_delay_warp",     delayWarp);
 
         // ── Chorus controls (global send 3) ──────────────────
         initFxKnob (chorusRate,  "fx_chorus_rate",   0.1f, 10.f, 1.5f, 0xFF66bbaa);
@@ -427,8 +445,11 @@ public:
             };
             lbl1 ("SIZE",  fxKnobY_reverbSize);
             lbl1 ("DAMP",  fxKnobY_reverbDamp);
+            lbl1 ("TIME",  fxKnobY_delayTime);
             lbl1 ("FDBK",  fxKnobY_delayFdbk);
             lbl1 ("MIX",   fxKnobY_delayMix);
+            lbl1 ("DENS",  fxKnobY_delayDensity);
+            lbl1 ("WARP",  fxKnobY_delayWarp);
             lbl1 ("RATE",  fxKnobY_chorusRate);
             lbl1 ("DPTH",  fxKnobY_chorusDepth);
         }
@@ -539,10 +560,11 @@ public:
         const int knobSize = std::min (stripW - 4, std::max (20, (availH_all - 3 * 12 - 2 * 2) / 6));
 
         // ── Send knob sizing ─────────────────────────────────
-        sendKnobSize_ = std::min (stripW - 4, 28);
+        sendKnobSize_ = knobSize;   // match pan/tilt knob size
         sendLabelW_ = std::min (18, stripW / 3);
         int sendPitch = sendKnobSize_ + 2;
-        int sendsH = 7 * sendPitch + 4;  // total height for 7 single-column sends
+        int depthBoxH = 16;         // height of the depth combo box
+        int sendsH = 7 * sendPitch + depthBoxH + 6;  // 7 sends + depth combo
 
         sendAreaTop_ = static_cast<float>(area.getHeight() - sendsH);
 
@@ -578,7 +600,15 @@ public:
             int sendX = x + sendLabelW_ + 1;
             int sy = area.getHeight() - sendsH + 2;
             juce::Slider* sendKnobs[] = { &s.send1Knob, &s.send2Knob, &s.send3Knob, &s.send4Knob, &s.send5Knob, &s.send6Knob, &s.send7Knob };
-            for (int sk = 0; sk < 7; ++sk)
+            // Send1 (RVB) + depth combo
+            sendKnobYs_[i][0] = sy;
+            s.send1Knob.setBounds (sendX, sy, sendKnobSize_, sendKnobSize_);
+            sy += sendPitch;
+            // Depth combo right below RVB knob
+            s.depthBox.setBounds (x + 1, sy, stripW - 2, depthBoxH);
+            sy += depthBoxH + 2;
+            // Sends 2–7
+            for (int sk = 1; sk < 7; ++sk)
             {
                 sendKnobYs_[i][sk] = sy;
                 sendKnobs[sk]->setBounds (sendX, sy, sendKnobSize_, sendKnobSize_);
@@ -603,10 +633,16 @@ public:
             reverbDamping.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap + 2;
 
             fxDelayLabelY = y; y += 12;
+            fxKnobY_delayTime = y;
+            delayTime.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap;
             fxKnobY_delayFdbk = y;
             delayFeedback.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap;
             fxKnobY_delayMix = y;
-            delayMix.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap + 2;
+            delayMix.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap;
+            fxKnobY_delayDensity = y;
+            delayDensity.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap;
+            fxKnobY_delayWarp = y;
+            delayWarp.setBounds (cx, y, fxKnobSize, fxKnobSize); y += fxKnobSize + labelGap + 2;
 
             fxChorusLabelY = y; y += 12;
             fxKnobY_chorusRate = y;
@@ -730,6 +766,7 @@ private:
         juce::Slider   send5Knob;    // distortion send
         juce::Slider   send6Knob;    // insert 1 send
         juce::Slider   send7Knob;    // insert 2 send
+        juce::ComboBox depthBox;     // reverb depth (predelay: Close/Near/Mid/Far)
         juce::TextButton muteBtn;
         juce::TextButton soloBtn;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
@@ -742,6 +779,7 @@ private:
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send5Attachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send6Attachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> send7Attachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> depthAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> muteAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> soloAttachment;
         float peakLevel = 0.0f;
@@ -758,7 +796,7 @@ private:
 
     // ── FX controls ──────────────────────────────────────────
     juce::Slider reverbSize, reverbDamping;
-    juce::Slider delayFeedback, delayMix;
+    juce::Slider delayTime, delayFeedback, delayMix, delayDensity, delayWarp;
     juce::Slider chorusRate, chorusDepth;
     juce::Slider flangerRate, flangerFeedback;
     juce::Slider distDrive, distTone;
@@ -766,7 +804,7 @@ private:
     juce::Slider compThresh, compRatio;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> reverbSizeAttach, reverbDampingAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayFeedbackAttach, delayMixAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayTimeAttach, delayFeedbackAttach, delayMixAttach, delayDensityAttach, delayWarpAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> chorusRateAttach, chorusDepthAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> flangerRateAttach, flangerFeedbackAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> distDriveAttach, distToneAttach;
@@ -779,7 +817,7 @@ private:
     int fxEqLabelY = 16, fxCompLabelY = 100;
     int fxKnobH = 28;
     int fxKnobY_reverbSize = 0, fxKnobY_reverbDamp = 0;
-    int fxKnobY_delayFdbk = 0, fxKnobY_delayMix = 0;
+    int fxKnobY_delayTime = 0, fxKnobY_delayFdbk = 0, fxKnobY_delayMix = 0, fxKnobY_delayDensity = 0, fxKnobY_delayWarp = 0;
     int fxKnobY_chorusRate = 0, fxKnobY_chorusDepth = 0;
     int fxKnobY_flangerRate = 0, fxKnobY_flangerFdbk = 0;
     int fxKnobY_distDrive = 0, fxKnobY_distTone = 0;
