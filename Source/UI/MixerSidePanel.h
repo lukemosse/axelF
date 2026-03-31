@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "AxelFColours.h"
+#include "ConsoleBackPanel.h"
 #include "../Common/MasterMixer.h"
 #include "../Common/ExternalPluginSlot.h"
 
@@ -203,6 +204,42 @@ public:
                     mixer.setSolo (j, false);
                 updatingExclusive = false;
             };
+
+            // Phase invert button
+            s.phaseBtn.setButtonText (juce::CharPointer_UTF8 ("\xc3\x98"));  // Ø
+            s.phaseBtn.setClickingTogglesState (true);
+            s.phaseBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (Colours::accentOrange));
+            s.phaseBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (Colours::bgControl));
+            s.phaseBtn.setColour (juce::TextButton::textColourOffId, juce::Colour (Colours::textSecondary));
+            s.phaseBtn.setColour (juce::TextButton::textColourOnId, juce::Colour (Colours::textPrimary));
+            s.phaseBtn.setTooltip ("Phase Invert");
+            addAndMakeVisible (s.phaseBtn);
+
+            s.phaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+                mixApvts, MixerParamIDs::phaseID (i), s.phaseBtn);
+
+            // HPF combo (Off / 40 / 80 / 120)
+            s.hpfBox.addItemList ({ "Off", "40", "80", "120" }, 1);
+            s.hpfBox.setJustificationType (juce::Justification::centred);
+            s.hpfBox.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xFF0e1224));
+            s.hpfBox.setColour (juce::ComboBox::outlineColourId, s.accent.withAlpha (0.4f));
+            s.hpfBox.setColour (juce::ComboBox::textColourId, juce::Colour (Colours::textPrimary));
+            s.hpfBox.setTooltip ("High-pass filter: Off / 40 / 80 / 120 Hz");
+            addAndMakeVisible (s.hpfBox);
+
+            s.hpfAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+                mixApvts, MixerParamIDs::hpfID (i), s.hpfBox);
+
+            // Saturation amount knob
+            s.satKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+            s.satKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+            s.satKnob.setRange (0.0, 1.0, 0.01);
+            s.satKnob.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (Colours::accentOrange).withAlpha (0.6f));
+            s.satKnob.setTooltip ("Saturation amount");
+            addAndMakeVisible (s.satKnob);
+
+            s.satAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                mixApvts, MixerParamIDs::satAmountID (i), s.satKnob);
         }
 
         // ── Master strip ─────────────────────────────────────
@@ -242,6 +279,24 @@ public:
 
         compThreshAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_master_comp_threshold", compThresh);
         compRatioAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_master_comp_ratio",     compRatio);
+
+        // ── Master width + parallel crush knobs ──────────────
+        initFxKnob (widthKnob,    "fx_master_width",           0.f, 1.5f, 1.f,  Colours::accentBlue);
+        initFxKnob (parallelKnob, "fx_master_parallel_blend",  0.f, 1.f,  0.f,  Colours::accentRed);
+
+        widthAttach    = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_master_width",          widthKnob);
+        parallelAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (fxApvts, "fx_master_parallel_blend", parallelKnob);
+
+        // ── Console back-panel gear button ────────────────────
+        consoleGearBtn.setButtonText ("CONSOLE");
+        consoleGearBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF1a2530));
+        consoleGearBtn.setColour (juce::TextButton::textColourOffId, juce::Colour (Colours::accentGold));
+        consoleGearBtn.setTooltip ("Open console back-panel settings");
+        consoleGearBtn.onClick = [this]() { backPanel.open(); };
+        addAndMakeVisible (consoleGearBtn);
+
+        // Back panel overlay (starts hidden)
+        addChildComponent (backPanel);
 
         // ── Reverb controls (global send 1) ──────────────────
         initFxKnob (reverbSize,    "fx_reverb_size",     0.f, 1.f,   0.5f,  0xFF5b8bcc);
@@ -393,6 +448,14 @@ public:
             g.setColour (colour.withAlpha (0.8f));
             g.fillRoundedRectangle (filled, 1.0f);
 
+            // HPF / SAT labels above their controls
+            g.setFont (juce::Font(juce::FontOptions(6.5f)));
+            g.setColour (juce::Colour (Colours::textSecondary).withAlpha (0.6f));
+            g.drawText ("SAT", static_cast<int>(x), satLabelY_[i],
+                        static_cast<int>(stripW), 9, juce::Justification::centred, false);
+            g.drawText ("HPF", static_cast<int>(x), hpfLabelY_[i],
+                        static_cast<int>(stripW), 9, juce::Justification::centred, false);
+
             // Send labels (single column, drawn next to each send knob)
             g.setFont (juce::Font(juce::FontOptions(7.0f)));
             static const char* sendNames[] = { "RVB", "DLY", "CHR", "FLG", "DST", "IN1", "IN2" };
@@ -529,6 +592,14 @@ public:
         mstLbl ("THR",  fxKnobY_compThresh);
         mstLbl ("RAT",  fxKnobY_compRatio);
 
+        g.setColour (juce::Colour (Colours::accentBlue).withAlpha (0.7f));
+        g.drawText ("BUS", static_cast<int>(mstLabelX), fxWidthLabelY,
+                    static_cast<int>(mstLabelW), 10, juce::Justification::centred, false);
+        g.setFont (juce::Font(juce::FontOptions(6.5f)));
+        g.setColour (juce::Colour (Colours::textSecondary).withAlpha (0.65f));
+        mstLbl ("WDTH", fxKnobY_width);
+        mstLbl ("CRSH", fxKnobY_parallel);
+
         // ── Master VU meter ──────────────────────────────────
         {
             float meterW = 6.0f;
@@ -583,9 +654,22 @@ public:
             s.tiltKnob.setBounds (x + (stripW - knobSize) / 2, y, knobSize, knobSize);
             y += knobSize + 2;
 
-            // Mute / Solo — full-width stacked rows
+            // Saturation knob
+            satLabelY_[i] = y - 1;
+            s.satKnob.setBounds (x + (stripW - knobSize) / 2, y, knobSize, knobSize);
+            y += knobSize + 2;
+
+            // HPF combo
+            hpfLabelY_[i] = y - 1;
+            s.hpfBox.setBounds (x + 2, y, stripW - 4, 18);
+            y += 20;
+
+            // Phase / Mute / Solo — full-width stacked rows
             int btnW = stripW - 4;
             int btnH = 22;
+            int phaseH = 18;
+            s.phaseBtn.setBounds (x + 2, y, btnW, phaseH);
+            y += phaseH + 2;
             s.muteBtn.setBounds (x + 2, y, btnW, btnH);
             y += btnH + 2;
             s.soloBtn.setBounds (x + 2, y, btnW, btnH);
@@ -722,10 +806,22 @@ public:
             fxKnobY_compRatio = y;
             compRatio.setBounds (cx, y, mstKnobSize, mstKnobSize); y += mstKnobSize + labelGap + 4;
 
-            // Master fader (fills remaining height)
+            // WIDTH / CRSH section
+            fxWidthLabelY = y; y += labelH + 2;
+            fxKnobY_width = y;
+            widthKnob.setBounds (cx, y, mstKnobSize, mstKnobSize); y += mstKnobSize + labelGap;
+            fxKnobY_parallel = y;
+            parallelKnob.setBounds (cx, y, mstKnobSize, mstKnobSize); y += mstKnobSize + labelGap + 4;
+
+            // Console gear button — below comp, above fader
             int faderBottom = area.getHeight() - 8;
             int faderW = std::min (stripW - 10, 24);
             int faderX = x + (stripW - faderW) / 2;
+            int gearBtnW = stripW - 6;
+            consoleGearBtn.setBounds (x + 3, y, gearBtnW, 18);
+            y += 22;
+
+            // Master fader (fills remaining height)
             masterFader.setBounds (faderX, y, faderW, std::max (30, faderBottom - y));
 
             // VU meter position — to the right of the fader
@@ -733,6 +829,9 @@ public:
             masterMeterY_ = y;
             masterMeterH_ = std::max (30, faderBottom - y);
         }
+
+        // ── Console back panel overlay fills entire mixer ─────
+        backPanel.setBounds (getLocalBounds());
     }
 
 private:
@@ -769,6 +868,9 @@ private:
         juce::ComboBox depthBox;     // reverb depth (predelay: Close/Near/Mid/Far)
         juce::TextButton muteBtn;
         juce::TextButton soloBtn;
+        juce::TextButton phaseBtn;
+        juce::ComboBox hpfBox;
+        juce::Slider   satKnob;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> panAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> tiltAttachment;
@@ -782,6 +884,9 @@ private:
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> depthAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> muteAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> soloAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> phaseAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> hpfAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> satAttachment;
         float peakLevel = 0.0f;
     };
 
@@ -793,6 +898,16 @@ private:
     float masterPeakLevel_ = 0.0f;
     int masterMeterY_ = 0, masterMeterH_ = 0;
     float masterMeterX_ = 0.0f;
+
+    // ── Console back-panel ─────────────────────────────────
+    juce::TextButton consoleGearBtn;
+    ConsoleBackPanel backPanel { mixerAPVTS, effectsAPVTS };
+
+    // ── Master width + parallel crush ─────────────────────
+    juce::Slider widthKnob, parallelKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> widthAttach, parallelAttach;
+    int fxKnobY_width = 0, fxKnobY_parallel = 0;
+    int fxWidthLabelY = 0;
 
     // ── FX controls ──────────────────────────────────────────
     juce::Slider reverbSize, reverbDamping;
@@ -829,6 +944,8 @@ private:
     int sendKnobSize_ = 24;
     int sendLabelW_ = 16;
     int sendKnobYs_[6][7] = {};
+    int satLabelY_[6] = {};
+    int hpfLabelY_[6] = {};
 
     // ── External insert slot UI ──────────────────────────────
     ExternalPluginSlot* insertSlot[2] = { nullptr, nullptr };

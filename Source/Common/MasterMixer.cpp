@@ -81,12 +81,42 @@ juce::AudioProcessorValueTreeState::ParameterLayout createMixerParameterLayout()
             juce::ParameterID { MixerParamIDs::send1PredelayID (i), 1 },
             juce::String (MixerParamIDs::kPrefixes[i]) + " Reverb Depth",
             juce::StringArray { "Close", "Near", "Mid", "Far" }, 0));
+
+        params.push_back (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { MixerParamIDs::phaseID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " Phase Invert",
+            false));
+
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { MixerParamIDs::hpfID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " HPF",
+            juce::StringArray { "Off", "40 Hz", "80 Hz", "120 Hz" }, 0));
+
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { MixerParamIDs::satAmountID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " Saturation",
+            juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { MixerParamIDs::satColorID (i), 1 },
+            juce::String (MixerParamIDs::kPrefixes[i]) + " Sat Color",
+            juce::StringArray { "Clean", "Transformer", "Console", "Tape" }, 0));
     }
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { MixerParamIDs::kMasterLevel, 1 },
         "Master Level",
         juce::NormalisableRange<float> (0.0f, 1.5f, 0.01f), 1.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { MixerParamIDs::kCrosstalk, 1 },
+        "Console Crosstalk",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { MixerParamIDs::kNoiseFloor, 1 },
+        "Console Noise Floor",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
 
     return { params.begin(), params.end() };
 }
@@ -111,9 +141,15 @@ void MasterMixer::bindToAPVTS (juce::AudioProcessorValueTreeState& apvts)
         channels[static_cast<size_t> (i)].send7 = apvts.getRawParameterValue (MixerParamIDs::send7ID (i));
         channels[static_cast<size_t> (i)].tilt  = apvts.getRawParameterValue (MixerParamIDs::tiltID (i));
         channels[static_cast<size_t> (i)].send1Predelay = apvts.getRawParameterValue (MixerParamIDs::send1PredelayID (i));
+        channels[static_cast<size_t> (i)].phase     = apvts.getRawParameterValue (MixerParamIDs::phaseID (i));
+        channels[static_cast<size_t> (i)].hpf       = apvts.getRawParameterValue (MixerParamIDs::hpfID (i));
+        channels[static_cast<size_t> (i)].satAmount = apvts.getRawParameterValue (MixerParamIDs::satAmountID (i));
+        channels[static_cast<size_t> (i)].satColor  = apvts.getRawParameterValue (MixerParamIDs::satColorID (i));
     }
 
     masterLevelPtr = apvts.getRawParameterValue (MixerParamIDs::kMasterLevel);
+    crosstalkPtr   = apvts.getRawParameterValue (MixerParamIDs::kCrosstalk);
+    noiseFloorPtr  = apvts.getRawParameterValue (MixerParamIDs::kNoiseFloor);
 }
 
 // ── Prepare smoothing ────────────────────────────────────────
@@ -136,7 +172,15 @@ void MasterMixer::prepare (double sampleRate)
         tiltLpStateL[i] = 0.0f;
         tiltLpStateR[i] = 0.0f;
         send1PreDelays[i].prepare (sampleRate);
+
+        saturationL[i].prepare (sampleRate, 512);
+        saturationR[i].prepare (sampleRate, 512);
+        hpfL[i].prepare (sampleRate);
+        hpfR[i].prepare (sampleRate);
     }
+
+    crosstalk.prepare (sampleRate);
+    consoleNoise.prepare (sampleRate);
 
     prepared = true;
 }
@@ -592,6 +636,12 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
         const float s6    = ch.send6 ? ch.send6->load (std::memory_order_relaxed) : 0.0f;
         const float s7    = ch.send7 ? ch.send7->load (std::memory_order_relaxed) : 0.0f;
         const float tilt  = ch.tilt  ? ch.tilt->load (std::memory_order_relaxed)  : 0.0f;
+        const bool  phaseInvert = ch.phase ? ch.phase->load (std::memory_order_relaxed) >= 0.5f : false;
+        const int   hpfMode     = ch.hpf   ? juce::roundToInt (ch.hpf->load (std::memory_order_relaxed)) : 0;
+        const float satAmount   = ch.satAmount ? ch.satAmount->load (std::memory_order_relaxed) : 0.0f;
+        const int   satColor    = ch.satColor  ? juce::roundToInt (ch.satColor->load (std::memory_order_relaxed)) : 0;
+        const float noiseAmount = noiseFloorPtr ? noiseFloorPtr->load (std::memory_order_relaxed) : 0.0f;
+        const float xtalkAmount = crosstalkPtr ? crosstalkPtr->load (std::memory_order_relaxed) : 0.0f;
 
         if (prepared)
         {
@@ -616,9 +666,21 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
 
         const int numSamples = mainOut.getNumSamples();
         const bool hasTilt7 = std::abs (tilt) > 0.001f;
+        const bool hasStrip = hasTilt7 || phaseInvert || hpfMode > 0 || satAmount > 0.001f || noiseAmount > 0.001f;
 
-        if (hasTilt7)
+        // Update per-channel strip DSP parameters
+        hpfL[i].setMode (hpfMode);
+        hpfR[i].setMode (hpfMode);
+        saturationL[i].setAmount (satAmount);
+        saturationR[i].setAmount (satAmount);
+        saturationL[i].setColorMode (satColor);
+        saturationR[i].setColorMode (satColor);
+        consoleNoise.setAmount (noiseAmount);
+        crosstalk.setAmount (xtalkAmount);
+
+        if (hasStrip)
         {
+            // Per-sample path: Phase → HPF → Tilt EQ → Saturation → Noise → Level/Pan → Sends
             const auto* srcL = src.getReadPointer (0);
             const auto* srcR = src.getReadPointer (1);
             auto* outL = mainOut.getWritePointer (0);
@@ -634,14 +696,45 @@ void MasterMixer::process (const std::array<juce::AudioBuffer<float>*, 6>& modul
             {
                 float inL = srcL[s];
                 float inR = srcR[s];
-                tiltLpStateL[i] += tiltCoeff * (inL - tiltLpStateL[i]);
-                tiltLpStateR[i] += tiltCoeff * (inR - tiltLpStateR[i]);
-                inL = tiltLpStateL[i] * tL7 + (inL - tiltLpStateL[i]) * tH7;
-                inR = tiltLpStateR[i] * tL7 + (inR - tiltLpStateR[i]) * tH7;
 
+                // 1. Phase invert
+                if (phaseInvert) { inL = -inL; inR = -inR; }
+
+                // 2. High-pass filter
+                if (hpfMode > 0)
+                {
+                    inL = hpfL[i].processSample (inL);
+                    inR = hpfR[i].processSample (inR);
+                }
+
+                // 3. Tilt EQ
+                if (hasTilt7)
+                {
+                    tiltLpStateL[i] += tiltCoeff * (inL - tiltLpStateL[i]);
+                    tiltLpStateR[i] += tiltCoeff * (inR - tiltLpStateR[i]);
+                    inL = tiltLpStateL[i] * tL7 + (inL - tiltLpStateL[i]) * tH7;
+                    inR = tiltLpStateR[i] * tL7 + (inR - tiltLpStateR[i]) * tH7;
+                }
+
+                // 4. Channel saturation
+                if (satAmount > 0.001f)
+                {
+                    inL = saturationL[i].processSample (inL);
+                    inR = saturationR[i].processSample (inR);
+                }
+
+                // 5. Noise floor injection
+                if (noiseAmount > 0.001f)
+                {
+                    inL += consoleNoise.generateSample (static_cast<int> (i), 0);
+                    inR += consoleNoise.generateSample (static_cast<int> (i), 1);
+                }
+
+                // 6. Level/Pan → main output
                 outL[s] += inL * gainL;
                 outR[s] += inR * gainR;
 
+                // 7. Aux sends (post-fader)
                 if (s1 > 0.001f) { auto [dL, dR] = send1PreDelays[i].processSample (inL * gainL * s1, inR * gainR * s1); aux1Out.getWritePointer(0)[s] += dL; aux1Out.getWritePointer(1)[s] += dR; } else { send1PreDelays[i].processSample (0.0f, 0.0f); }
                 if (s2 > 0.001f) { aux2Out.getWritePointer(0)[s] += inL * gainL * s2; aux2Out.getWritePointer(1)[s] += inR * gainR * s2; }
                 if (s3 > 0.001f) { aux3Out.getWritePointer(0)[s] += inL * gainL * s3; aux3Out.getWritePointer(1)[s] += inR * gainR * s3; }

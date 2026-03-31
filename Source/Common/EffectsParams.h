@@ -115,6 +115,30 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createEffectsParamete
     params.push_back (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { "fx_master_limiter", 1 }, "Limiter On", true));
 
+    // ── Master Bus — Console Summing Saturation ──────────────
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_master_summing", 1 }, "Summing Saturation",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "fx_master_summing_color", 1 }, "Summing Color",
+        juce::StringArray { "Clean", "Neve", "SSL", "API" }, 0));
+
+    // ── Master Bus — Parallel Compression ────────────────────
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_master_parallel_blend", 1 }, "Parallel Compression",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    // ── Master Bus — Stereo Width (M/S) ─────────────────────
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_master_width", 1 }, "Stereo Width",
+        juce::NormalisableRange<float> (0.0f, 1.5f, 0.01f), 1.0f));
+
+    // ── Master Bus — Analog Drift ───────────────────────────
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "fx_master_drift", 1 }, "Analog Drift",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
     // ── Chorus (Send 3) ──────────────────────────────────────
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "fx_chorus_rate", 1 }, "Chorus Rate",

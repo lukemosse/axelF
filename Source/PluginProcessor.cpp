@@ -65,6 +65,9 @@ void AxelFProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     stereoFlanger.prepare(sampleRate, samplesPerBlock);
     distortion.prepare(sampleRate, samplesPerBlock);
     masterBus.prepare(sampleRate, samplesPerBlock);
+    summingSaturation.prepare(sampleRate, samplesPerBlock);
+    parallelCrush.prepare(sampleRate, samplesPerBlock);
+    summingDrift.prepare(sampleRate);
 
     // Prepare external insert slots
     for (auto& slot : insertSlots)
@@ -373,6 +376,27 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     ins2Buffer.setSize(2, numSamples, false, false, true);
     mixer.process(moduleBuffers, buffer, aux1Buffer, aux2Buffer, aux3Buffer, aux4Buffer, aux5Buffer, ins1Buffer, ins2Buffer);
 
+    // ── 6-console. Summing saturation + parallel compression ─
+    {
+        auto safeLoadFx = [&](const char* id, float def) -> float {
+            if (auto* p = effectsAPVTS.getRawParameterValue(id))
+                return p->load();
+            return def;
+        };
+
+        // Summing saturation (post-mixer, pre-effects)
+        const float summingAmt = safeLoadFx("fx_master_summing", 0.0f);
+        const int   summingClr = static_cast<int>(safeLoadFx("fx_master_summing_color", 0.0f));
+        summingSaturation.setAmount(summingAmt);
+        summingSaturation.setColorMode(summingClr);
+        summingSaturation.process(buffer);
+
+        // Parallel compression (post-summing, pre-effects)
+        const float parallelBlend = safeLoadFx("fx_master_parallel_blend", 0.0f);
+        parallelCrush.setBlend(parallelBlend);
+        parallelCrush.process(buffer);
+    }
+
     // ── 6a. Process send effects ─────────────────────────────
     {
         // Read effects parameters from APVTS
@@ -457,12 +481,17 @@ void AxelFProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         masterBus.setEqLow(safeLoad("fx_master_eq_low", 0.0f));
         masterBus.setEqMid(safeLoad("fx_master_eq_mid", 0.0f));
         masterBus.setEqHigh(safeLoad("fx_master_eq_high", 0.0f));
+        masterBus.setStereoWidth(safeLoad("fx_master_width", 1.0f));
         masterBus.setCompThreshold(safeLoad("fx_master_comp_threshold", 0.0f));
         masterBus.setCompRatio(safeLoad("fx_master_comp_ratio", 1.0f));
         masterBus.setCompAttack(safeLoad("fx_master_comp_attack", 10.0f));
         masterBus.setCompRelease(safeLoad("fx_master_comp_release", 100.0f));
         masterBus.setLimiterEnabled(safeLoad("fx_master_limiter", 1.0f) >= 0.5f);
         masterBus.process(buffer);
+
+        // Analog drift (final stage before safety clip)
+        summingDrift.setAmount(safeLoad("fx_master_drift", 0.0f));
+        summingDrift.process(buffer);
     }
 
     // ── 6c. Final safety clip — prevent any residual overs ───

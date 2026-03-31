@@ -4,6 +4,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include "DSP/SendPreDelay.h"
+#include "DSP/ChannelSaturation.h"
+#include "DSP/ChannelHPF.h"
+#include "DSP/Crosstalk.h"
+#include "DSP/ConsoleNoise.h"
 #include <array>
 #include <atomic>
 
@@ -28,8 +32,14 @@ namespace MixerParamIDs
     inline juce::String send7ID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send7"; }
     inline juce::String tiltID  (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_tilt"; }
     inline juce::String send1PredelayID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_send1_predelay"; }
+    inline juce::String phaseID    (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_phase"; }
+    inline juce::String hpfID      (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_hpf"; }
+    inline juce::String satAmountID(int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_sat_amount"; }
+    inline juce::String satColorID (int ch) { return juce::String ("mix_") + kPrefixes[ch] + "_sat_color"; }
 
     static constexpr const char* kMasterLevel = "mix_master_level";
+    static constexpr const char* kCrosstalk   = "mix_crosstalk";
+    static constexpr const char* kNoiseFloor  = "mix_noise_floor";
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createMixerParameterLayout();
@@ -135,6 +145,10 @@ private:
         std::atomic<float>* send7 = nullptr;
         std::atomic<float>* tilt  = nullptr;
         std::atomic<float>* send1Predelay = nullptr;
+        std::atomic<float>* phase     = nullptr;
+        std::atomic<float>* hpf       = nullptr;
+        std::atomic<float>* satAmount = nullptr;
+        std::atomic<float>* satColor  = nullptr;
         std::atomic<float>  peakLevel { 0.0f };
     };
 
@@ -155,6 +169,16 @@ private:
     float tiltLpStateL[6] = {};
     float tiltLpStateR[6] = {};
     float tiltCoeff = 0.134f;  // updated in prepare()
+
+    // Per-channel console strip DSP
+    dsp::ChannelSaturation saturationL[6], saturationR[6];
+    dsp::ChannelHPF hpfL[6], hpfR[6];
+
+    // Global console processors
+    dsp::Crosstalk crosstalk;
+    dsp::ConsoleNoise consoleNoise;
+    std::atomic<float>* crosstalkPtr  = nullptr;
+    std::atomic<float>* noiseFloorPtr = nullptr;
 };
 
 } // namespace axelf

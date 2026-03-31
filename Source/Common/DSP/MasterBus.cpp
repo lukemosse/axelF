@@ -23,6 +23,9 @@ void MasterBus::prepare (double sampleRate, int maxBlockSize)
     compDirty = true;
     limiterDirty = true;
 
+    widthSmoothed.reset (sampleRate, 0.01);
+    widthSmoothed.setCurrentAndTargetValue (1.0f);
+
     updateEq();
     updateCompressor();
 }
@@ -51,6 +54,7 @@ void MasterBus::setCompRelease   (float ms) { if (compReleaseMs   != ms) { compR
 // ── Limiter setters ─────────────────────────────────────────
 void MasterBus::setLimiterEnabled (bool on) { limiterOn = on; }
 void MasterBus::setLimiterCeiling (float dB) { if (limiterCeiling != dB) { limiterCeiling = dB; limiterDirty = true; } }
+void MasterBus::setStereoWidth (float w) { widthSmoothed.setTargetValue (w); }
 
 // ── Update internals ────────────────────────────────────────
 void MasterBus::updateEq()
@@ -94,6 +98,23 @@ void MasterBus::process (juce::AudioBuffer<float>& buffer)
     lowShelf.process (context);
     midPeak.process (context);
     highShelf.process (context);
+
+    // M/S Stereo Width (between EQ and compressor)
+    if (widthSmoothed.isSmoothing() || std::abs (widthSmoothed.getTargetValue() - 1.0f) > 0.001f)
+    {
+        auto* dataL = buffer.getWritePointer (0);
+        auto* dataR = buffer.getWritePointer (1);
+        const int numSamples = buffer.getNumSamples();
+
+        for (int s = 0; s < numSamples; ++s)
+        {
+            const float w = widthSmoothed.getNextValue();
+            const float mid  = (dataL[s] + dataR[s]) * 0.5f;
+            const float side = (dataL[s] - dataR[s]) * 0.5f;
+            dataL[s] = mid + side * w;
+            dataR[s] = mid - side * w;
+        }
+    }
 
     // Compressor
     compressor.process (context);

@@ -31,6 +31,9 @@ public:
     void setLimiterEnabled (bool on);
     void setLimiterCeiling (float dB);  // default -0.3
 
+    // M/S Width
+    void setStereoWidth (float width);  // 0.0–1.5 (1.0 = original)
+
     /** Process a stereo buffer in-place. */
     void process (juce::AudioBuffer<float>& buffer);
 
@@ -65,6 +68,10 @@ private:
     bool  limiterOn      = true;
     float limiterCeiling = -0.3f;
     bool  limiterDirty   = true;
+
+    // ── M/S Width ─────────────────────────────────────────────
+    float stereoWidth = 1.0f;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> widthSmoothed;
 };
 
 } // namespace axelf::dsp

@@ -17,6 +17,9 @@
 #include "Common/DSP/StereoFlanger.h"
 #include "Common/DSP/Distortion.h"
 #include "Common/DSP/MasterBus.h"
+#include "Common/DSP/SummingSaturation.h"
+#include "Common/DSP/ParallelCrush.h"
+#include "Common/DSP/SummingDrift.h"
 #include "Common/ExternalPluginSlot.h"
 #include <juce_core/juce_core.h>
 #include "Modules/Jupiter8/Jupiter8Processor.h"
@@ -156,6 +159,9 @@ private:
     dsp::StereoFlanger stereoFlanger;
     dsp::Distortion distortion;
     dsp::MasterBus   masterBus;
+    dsp::SummingSaturation summingSaturation;
+    dsp::ParallelCrush     parallelCrush;
+    dsp::SummingDrift      summingDrift;
 
     // Master insert slots (post-aux-return, pre-master-bus)
     std::array<ExternalPluginSlot, 2> insertSlots;
